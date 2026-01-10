@@ -401,14 +401,14 @@ export default function QueryAnalytics() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[320px]">
+          <table className="w-full table-fixed">
             <thead className="bg-neutral-50 border-b border-neutral-200">
               <tr>
-                <th className="px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-left text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                <th className="px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-left text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider w-[30%] md:w-[25%]">
                   Query
                 </th>
                 <th 
-                  className="px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-center text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 transition-colors w-16 sm:w-20 md:w-24"
+                  className="px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-center text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 transition-colors w-[15%] sm:w-[12%] md:w-[10%]"
                   onClick={() => handleSort('student', 'confidence')}
                 >
                   <div className="flex items-center justify-center gap-0.5 sm:gap-1">
@@ -417,10 +417,10 @@ export default function QueryAnalytics() {
                     <SortIcon table="student" field="confidence" />
                   </div>
                 </th>
-                <th className="hidden md:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-left text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                <th className="hidden md:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-center text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider w-[45%]">
                   Response
                 </th>
-                <th className="hidden sm:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-center text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider w-16 sm:w-24 md:w-32">
+                <th className="hidden sm:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-center text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider w-[20%] md:w-[15%]">
                   Date
                 </th>
               </tr>
@@ -436,7 +436,7 @@ export default function QueryAnalytics() {
                   className="hover:bg-neutral-50 transition-colors cursor-pointer"
                 >
                   <td className="px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 text-xs sm:text-sm text-neutral-900 align-middle">
-                    <div className="max-w-[180px] xs:max-w-[220px] sm:max-w-xs truncate" title={query.query}>
+                    <div className="truncate" title={query.query}>
                       "{query.query}"
                     </div>
                   </td>
@@ -446,11 +446,11 @@ export default function QueryAnalytics() {
                     </span>
                   </td>
                   <td className="hidden md:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 text-xs sm:text-sm text-neutral-600 align-middle">
-                    <div className="max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl 2xl:max-w-3xl truncate" title={query.response}>
+                    <div className="truncate" title={query.response}>
                       "{query.response}"
                     </div>
                   </td>
-                  <td className="hidden sm:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 text-[10px] sm:text-xs md:text-sm text-neutral-500 whitespace-nowrap align-middle">
+                  <td className="hidden sm:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 text-[10px] sm:text-xs md:text-sm text-neutral-500 whitespace-nowrap text-center align-middle">
                     {query.timestamp}
                   </td>
                 </motion.tr>
@@ -595,17 +595,17 @@ export default function QueryAnalytics() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[320px]">
+          <table className="w-full table-fixed">
             <thead className="bg-neutral-50 border-b border-neutral-200">
               <tr>
-                <th className="px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-left text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                <th className="px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-left text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider w-[35%] sm:w-[30%] md:w-[25%]">
                   Question
                 </th>
-                <th className="hidden sm:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-left text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                <th className="hidden sm:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-left text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider w-[25%] md:w-[30%]">
                   User Email
                 </th>
                 <th 
-                  className="hidden sm:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-center text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 transition-colors w-16 sm:w-20 md:w-28"
+                  className="hidden sm:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-center text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 transition-colors w-[15%] md:w-[15%]"
                   onClick={() => handleSort('unsolved', 'date')}
                 >
                   <div className="flex items-center justify-center gap-0.5 sm:gap-1">
@@ -613,10 +613,10 @@ export default function QueryAnalytics() {
                     <SortIcon table="unsolved" field="date" />
                   </div>
                 </th>
-                <th className="px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-center text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider w-16 sm:w-20 md:w-24">
+                <th className="px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-center text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider w-[15%] sm:w-[12%] md:w-[12%]">
                   Status
                 </th>
-                <th className="px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-center text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider w-16 sm:w-20 md:w-24">
+                <th className="px-2 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3 text-center text-[10px] sm:text-xs font-semibold text-neutral-500 uppercase tracking-wider w-[15%] sm:w-[13%] md:w-[13%]">
                   Actions
                 </th>
               </tr>
@@ -631,19 +631,19 @@ export default function QueryAnalytics() {
                   className="hover:bg-neutral-50 transition-colors"
                 >
                   <td className="px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 text-xs sm:text-sm text-neutral-900 align-middle">
-                    <div className="max-w-[140px] sm:max-w-xs md:max-w-md lg:max-w-lg xl:max-w-xl 2xl:max-w-2xl truncate" title={query.question}>
+                    <div className="truncate" title={query.question}>
                       "{query.question}"
                     </div>
                   </td>
                   <td className="hidden sm:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 text-xs sm:text-sm text-neutral-600 align-middle">
-                    <div className="max-w-[120px] sm:max-w-xs md:max-w-sm lg:max-w-md truncate" title={query.userEmail}>
+                    <div className="truncate" title={query.userEmail}>
                       {query.userEmail}
                     </div>
                   </td>
-                  <td className="hidden sm:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 text-[10px] sm:text-xs md:text-sm text-neutral-500 whitespace-nowrap align-middle">
+                  <td className="hidden sm:table-cell px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 text-[10px] sm:text-xs md:text-sm text-neutral-500 whitespace-nowrap text-center align-middle">
                     {query.date}
                   </td>
-                  <td className="px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 align-middle">
+                  <td className="px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 text-center align-middle">
                     {query.status === 'pending' ? (
                       <Badge variant="danger" animate>
                         <span className="text-[10px] sm:text-xs">Pending</span>
@@ -654,7 +654,7 @@ export default function QueryAnalytics() {
                       </Badge>
                     )}
                   </td>
-                  <td className="px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 align-middle">
+                  <td className="px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 text-center align-middle">
                     {query.status === 'pending' && (
                       <motion.button
                         onClick={() => handleAnswer(query.id)}
