@@ -16,15 +16,15 @@ export class ApiError extends Error {
     this.status = status;
     this.data = data;
   }
-  
+
   get isAuthError() {
     return this.status === 401 || this.status === 403;
   }
-  
+
   get isServerError() {
     return this.status >= 500;
   }
-  
+
   get isNetworkError() {
     return this.status === 0;
   }
@@ -71,22 +71,22 @@ async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
   const token = getToken();
   const method = (options.method || 'GET').toUpperCase();
-  
+
   try {
     const headers = {
       ...options.headers,
     };
-    
+
     // Add auth header if token exists
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     // Don't set Content-Type for FormData (browser sets it with boundary)
     if (!(options.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
     }
-    
+
     const response = await fetch(url, {
       ...options,
       method,
@@ -114,7 +114,7 @@ async function handleResponse(response) {
       sessionStorage.removeItem('admin_user_info');
       window.dispatchEvent(new CustomEvent('auth:expired'));
     }
-    
+
     const errorData = await response.json().catch(() => ({}));
     throw new ApiError(
       errorData.detail || `HTTP ${response.status}`,
@@ -122,7 +122,7 @@ async function handleResponse(response) {
       errorData
     );
   }
-  
+
   return await response.json();
 }
 
@@ -142,21 +142,21 @@ export const healthApi = {
       return false;
     }
   },
-  
+
   /**
    * Get dashboard stats (requires auth)
    */
   async getStats() {
     return apiRequest('/api/v1/dashboard/stats');
   },
-  
+
   /**
    * Get recent activity
    */
   async getActivity(limit = 20) {
     return apiRequest(`/api/v1/dashboard/activity?limit=${limit}`);
   },
-  
+
   /**
    * Get weekly activity data
    */
@@ -176,24 +176,24 @@ export const knowledgeBaseApi = {
   async list(limit = 500) {
     return apiRequest(`/api/v1/knowledge-base/files?limit=${limit}`);
   },
-  
+
   // Alias for backwards compatibility
   async listDocuments(limit = 500) {
     return this.list(limit);
   },
-  
+
   /**
    * Get a single document by ID
    */
   async get(documentId) {
     return apiRequest(`/api/v1/knowledge-base/document/${documentId}`);
   },
-  
+
   // Alias
   async getDocument(documentId) {
     return this.get(documentId);
   },
-  
+
   /**
    * Download document content as blob
    */
@@ -203,15 +203,15 @@ export const knowledgeBaseApi = {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     const response = await fetch(
       `${API_BASE_URL}/api/v1/knowledge-base/download/${documentId}`,
       { headers }
     );
-    
+
     // Check for token refresh
     handleTokenRefresh(response);
-    
+
     if (!response.ok) {
       if (response.status === 401) {
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -220,15 +220,15 @@ export const knowledgeBaseApi = {
       }
       throw new ApiError('Download failed', response.status);
     }
-    
+
     return response.blob();
   },
-  
+
   // Alias
   async downloadDocument(documentId) {
     return this.download(documentId);
   },
-  
+
   /**
    * Get document content as text for preview
    */
@@ -238,15 +238,15 @@ export const knowledgeBaseApi = {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     const response = await fetch(
       `${API_BASE_URL}/api/v1/knowledge-base/download/${documentId}`,
       { headers }
     );
-    
+
     // Check for token refresh
     handleTokenRefresh(response);
-    
+
     if (!response.ok) {
       if (response.status === 401) {
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -255,10 +255,10 @@ export const knowledgeBaseApi = {
       }
       throw new ApiError('Failed to get content', response.status);
     }
-    
+
     return response.text();
   },
-  
+
   /**
    * Preview document content (returns blob URL for rendering)
    */
@@ -268,15 +268,15 @@ export const knowledgeBaseApi = {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     const response = await fetch(
       `${API_BASE_URL}/api/v1/knowledge-base/preview/${documentId}`,
       { headers }
     );
-    
+
     // Check for token refresh
     handleTokenRefresh(response);
-    
+
     if (!response.ok) {
       if (response.status === 401) {
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -285,11 +285,11 @@ export const knowledgeBaseApi = {
       }
       throw new ApiError('Failed to get preview', response.status);
     }
-    
+
     const blob = await response.blob();
     return URL.createObjectURL(blob);
   },
-  
+
   /**
    * Archive a document
    */
@@ -299,12 +299,12 @@ export const knowledgeBaseApi = {
       body: JSON.stringify({ document_id: documentId, filename }),
     });
   },
-  
+
   // Alias
   async archiveDocument(documentId, filename = null) {
     return this.archive(documentId, filename);
   },
-  
+
   /**
    * Edit/reindex a document
    */
@@ -314,12 +314,12 @@ export const knowledgeBaseApi = {
       body: JSON.stringify({ document_id: documentId, content }),
     });
   },
-  
+
   // Alias
   async editDocument(documentId, content) {
     return this.edit(documentId, content);
   },
-  
+
   /**
    * Permanently delete a document
    */
@@ -328,7 +328,7 @@ export const knowledgeBaseApi = {
       method: 'DELETE',
     });
   },
-  
+
   // Alias
   async deleteDocument(documentId) {
     return this.delete(documentId);
@@ -349,17 +349,17 @@ export const uploadApi = {
   async file(file, options = {}, onStatusChange = null) {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     // Add optional metadata
     if (options.title) formData.append('title', options.title);
     if (options.source) formData.append('source', options.source);
     if (options.tags) formData.append('tags', JSON.stringify(options.tags));
-    
+
     // Backend doesn't support streaming, use standard upload with progress callbacks
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      
+
       // Track upload progress
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable && onStatusChange) {
@@ -367,7 +367,7 @@ export const uploadApi = {
           onStatusChange('uploading', uploadProgress);
         }
       });
-      
+
       xhr.addEventListener('load', () => {
         // Check for token refresh
         const newToken = xhr.getResponseHeader('X-New-Token');
@@ -375,7 +375,7 @@ export const uploadApi = {
           sessionStorage.setItem(TOKEN_STORAGE_KEY, newToken);
           console.log('Token refreshed via sliding expiration (upload)');
         }
-        
+
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const result = JSON.parse(xhr.responseText);
@@ -399,11 +399,11 @@ export const uploadApi = {
           }
         }
       });
-      
+
       xhr.addEventListener('error', () => {
         reject(new ApiError('Network error', 0));
       });
-      
+
       xhr.open('POST', `${API_BASE_URL}/api/v1/upload`);
       const token = getToken();
       if (token) {
@@ -412,7 +412,7 @@ export const uploadApi = {
       xhr.send(formData);
     });
   },
-  
+
   /**
    * Upload multiple files sequentially (backend only supports single file upload)
    * @param {File[]} files - Array of files
@@ -422,15 +422,15 @@ export const uploadApi = {
   async multiple(files, options = {}, onStatusChange = null) {
     const results = [];
     let successCount = 0;
-    
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const overallProgress = Math.round((i / files.length) * 100);
-      
+
       if (onStatusChange) {
         onStatusChange('uploading', overallProgress, i);
       }
-      
+
       try {
         const result = await this.file(file, options, (status, fileProgress) => {
           // Convert individual file progress to overall progress
@@ -439,10 +439,10 @@ export const uploadApi = {
             onStatusChange('uploading', totalProgress, i);
           }
         });
-        
+
         results.push({ file: file.name, success: true, ...result });
         successCount++;
-        
+
         if (onStatusChange) {
           onStatusChange('complete', Math.round(((i + 1) / files.length) * 100), i);
         }
@@ -453,7 +453,7 @@ export const uploadApi = {
         }
       }
     }
-    
+
     return {
       status: 'success',
       total: files.length,
@@ -462,7 +462,7 @@ export const uploadApi = {
       results
     };
   },
-  
+
   /**
    * Upload archive - archives are not supported, throw error
    */
@@ -486,7 +486,7 @@ export const textApi = {
       body: JSON.stringify({ text }),
     });
   },
-  
+
   /**
    * Upload processed text to knowledge base
    * @param {string} filename - Name for the document
@@ -495,22 +495,22 @@ export const textApi = {
    */
   async upload(filename, content, onStatusChange = null) {
     if (onStatusChange) onStatusChange('uploading', 10);
-    
+
     try {
       if (onStatusChange) onStatusChange('processing', 30);
-      
+
       const result = await apiRequest('/api/v1/text/upload', {
         method: 'POST',
         body: JSON.stringify({ filename, content }),
       });
-      
+
       // Simulate processing stages
       if (onStatusChange) {
         setTimeout(() => onStatusChange('embedding', 70), 100);
         setTimeout(() => onStatusChange('storing', 90), 300);
         setTimeout(() => onStatusChange('complete', 100), 500);
       }
-      
+
       return result;
     } catch (error) {
       if (onStatusChange) onStatusChange('error', 0);
@@ -535,12 +535,12 @@ export const archiveApi = {
     }
     return response;
   },
-  
+
   // Alias for backward compatibility
   async listArchived(limit = 100) {
     return this.list(limit);
   },
-  
+
   /**
    * Restore an archived document
    */
@@ -550,7 +550,7 @@ export const archiveApi = {
       body: JSON.stringify({ archive_id: archiveId }),
     });
   },
-  
+
   /**
    * Permanently delete from archive
    */
@@ -559,12 +559,12 @@ export const archiveApi = {
       method: 'DELETE',
     });
   },
-  
+
   // Alias for backward compatibility
   async deletePermanent(archiveId) {
     return this.delete(archiveId);
   },
-  
+
   /**
    * Download archived document as blob
    */
@@ -574,16 +574,16 @@ export const archiveApi = {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     // Backend uses same download endpoint for both active and archived documents
     const response = await fetch(
       `${API_BASE_URL}/api/v1/knowledge-base/download/${archiveId}`,
       { headers }
     );
-    
+
     // Check for token refresh
     handleTokenRefresh(response);
-    
+
     if (!response.ok) {
       if (response.status === 401) {
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -592,10 +592,10 @@ export const archiveApi = {
       }
       throw new ApiError('Download failed', response.status);
     }
-    
+
     return response;
   },
-  
+
   /**
    * Get archived document content as text for preview
    */
@@ -605,16 +605,16 @@ export const archiveApi = {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     // Backend uses same download endpoint for both active and archived documents
     const response = await fetch(
       `${API_BASE_URL}/api/v1/knowledge-base/download/${archiveId}`,
       { headers }
     );
-    
+
     // Check for token refresh
     handleTokenRefresh(response);
-    
+
     if (!response.ok) {
       if (response.status === 401) {
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -623,10 +623,10 @@ export const archiveApi = {
       }
       throw new ApiError('Failed to get content', response.status);
     }
-    
+
     return response.text();
   },
-  
+
   /**
    * Preview archived document (returns blob URL for rendering)
    */
@@ -636,16 +636,16 @@ export const archiveApi = {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     // Backend uses same preview endpoint for both active and archived documents
     const response = await fetch(
       `${API_BASE_URL}/api/v1/knowledge-base/preview/${archiveId}`,
       { headers }
     );
-    
+
     // Check for token refresh
     handleTokenRefresh(response);
-    
+
     if (!response.ok) {
       if (response.status === 401) {
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -654,11 +654,11 @@ export const archiveApi = {
       }
       throw new ApiError('Failed to get preview', response.status);
     }
-    
+
     const blob = await response.blob();
     return URL.createObjectURL(blob);
   },
-  
+
   /**
    * Trigger manual cleanup
    */
@@ -681,7 +681,7 @@ export const systemInstructionsApi = {
   async get() {
     return apiRequest('/api/v1/system-instructions');
   },
-  
+
   /**
    * Save system instructions (commit to GitHub)
    */
@@ -691,7 +691,7 @@ export const systemInstructionsApi = {
       body: JSON.stringify({ content, message }),
     });
   },
-  
+
   /**
    * Get version history (from Firestore backups)
    */
@@ -714,14 +714,14 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });
-    
+
     if (result.status === 'success' && result.user) {
       localStorage.setItem('admin_session', JSON.stringify(result.user));
     }
-    
+
     return result;
   },
-  
+
   /**
    * Logout
    */
@@ -729,26 +729,101 @@ export const authApi = {
     localStorage.removeItem('admin_session');
     return { status: 'success' };
   },
-  
+
   /**
    * Check if session is valid
    */
   isLoggedIn() {
     return !!getToken();
   },
-  
+
   /**
    * Get current token
    */
   getToken() {
     return getToken();
   },
-  
+
   /**
    * Get current session (backward compatibility)
    */
   getSession() {
     return getSession();
+  },
+};
+
+// ============================================
+// User Management API (Superuser only)
+// ============================================
+
+export const userApi = {
+  /**
+   * List all users in the organization (superuser only)
+   * @returns {Promise<{status: string, users: Array, total: number}>}
+   */
+  async list() {
+    return apiRequest('/api/v1/users');
+  },
+
+  /**
+   * Get a specific user by ID
+   * @param {string} userId - User ID to retrieve
+   */
+  async get(userId) {
+    return apiRequest(`/api/v1/users/${encodeURIComponent(userId)}`);
+  },
+
+  /**
+   * Create a new user in the organization (superuser only)
+   * @param {Object} userData - User data
+   * @param {string} userData.username - Username (3-50 chars, alphanumeric + underscore/hyphen)
+   * @param {string} userData.email - Email address
+   * @param {string} userData.password - Password (min 8 chars)
+   * @param {string} [userData.full_name] - Full name (optional)
+   * @param {string} [userData.role] - Role: 'admin', 'viewer', or 'analyser' (default: 'admin')
+   */
+  async create(userData) {
+    return apiRequest('/api/v1/users', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  },
+
+  /**
+   * Update a user's information (superuser only)
+   * @param {string} userId - User ID to update
+   * @param {Object} updateData - Fields to update
+   * @param {string} [updateData.full_name] - New full name
+   * @param {string} [updateData.role] - New role
+   * @param {string} [updateData.status] - 'active' or 'disabled'
+   */
+  async update(userId, updateData) {
+    return apiRequest(`/api/v1/users/${encodeURIComponent(userId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+  },
+
+  /**
+   * Delete a user (superuser only)
+   * @param {string} userId - User ID to delete
+   */
+  async delete(userId) {
+    return apiRequest(`/api/v1/users/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Reset a user's password (superuser only)
+   * @param {string} userId - User ID
+   * @param {string} newPassword - New password (min 8 chars)
+   */
+  async resetPassword(userId, newPassword) {
+    return apiRequest(`/api/v1/users/${encodeURIComponent(userId)}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ new_password: newPassword }),
+    });
   },
 };
 
@@ -765,6 +840,7 @@ export const api = {
   text: textApi,
   archive: archiveApi,
   systemInstructions: systemInstructionsApi,
+  users: userApi,  // User management API (superuser only)
   dashboard: {
     getStats: () => apiRequest('/api/v1/dashboard/stats'),
     getActivity: (limit = 10) => apiRequest(`/api/v1/dashboard/activity?limit=${limit}`),
@@ -783,13 +859,13 @@ export const api = {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    
+
     const response = await fetch(`${API_BASE_URL}/api/v1/batch-download`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ document_ids: documentIds, source }),
     });
-    
+
     if (!response.ok) {
       if (response.status === 401) {
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -798,9 +874,10 @@ export const api = {
       }
       throw new ApiError('Batch download failed', response.status);
     }
-    
+
     return response.blob();
   },
 };
 
 export default api;
+

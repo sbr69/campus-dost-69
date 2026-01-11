@@ -18,6 +18,7 @@ slowapi
 
 # Firebase & Firestore
 google-cloud-firestore
+firebase-admin
 
 # Google APIs & AI
 google-genai
@@ -35,3 +36,4 @@ dropbox
 
 # Data Validation
 pydantic
+email-validator

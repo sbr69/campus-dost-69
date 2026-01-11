@@ -53,6 +53,16 @@ class Settings:
         if not self.FIREBASE_CRED_PATH and not self.FIREBASE_CRED_BASE64:
             if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
                 raise ValueError("No Firebase credentials provided")
+        
+        # Firebase Web API Key (REQUIRED for multi-user authentication)
+        # Get from Firebase Console > Project Settings > General > Web API Key
+        # Used for password verification via Google Identity REST API
+        self.FIREBASE_WEB_API_KEY = get_req("FIREBASE_WEB_API_KEY")
+        
+        # --- Multi-Tenancy Settings ---
+        # Collections for multi-tenant organization management
+        self.USERS_COLLECTION = get_opt("USERS_COLLECTION", "users")
+        self.ORGANIZATIONS_COLLECTION = get_opt("ORGANIZATIONS_COLLECTION", "organizations")
 
         # --- Firestore Collections ---
         # Application constants with sensible defaults (rarely need to change)

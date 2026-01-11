@@ -7,7 +7,7 @@ from .config import settings, logger
 from .providers.database.firestore_init import initialize_firebase
 from .utils.limiter import limiter
 from .exceptions import AppException
-from .routers import auth, upload, knowledge_base, archive, text, system_instructions, dashboard, health, batch
+from .routers import auth, upload, knowledge_base, archive, text, system_instructions, dashboard, health, batch, users
 
 app = FastAPI(title="Admin Backend", version="3.1.0", docs_url=None, redoc_url=None)
 
@@ -52,3 +52,5 @@ app.include_router(batch.router)
 app.include_router(system_instructions.router)
 app.include_router(dashboard.router)
 app.include_router(health.router)
+app.include_router(users.router)
+

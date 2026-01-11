@@ -49,7 +49,7 @@ const UserSettingsPage = lazy(() => import('./pages/UserSettings'));
 
 function PageLoader() {
   return (
-    <motion.div 
+    <motion.div
       className="flex items-center justify-center min-h-[60vh]"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -67,13 +67,13 @@ function PageLoader() {
 
 // Page transition variants
 const pageTransitionVariants = {
-  initial: { 
-    opacity: 0, 
+  initial: {
+    opacity: 0,
     y: 12,
     filter: 'blur(4px)'
   },
-  animate: { 
-    opacity: 1, 
+  animate: {
+    opacity: 1,
     y: 0,
     filter: 'blur(0px)',
     transition: {
@@ -83,8 +83,8 @@ const pageTransitionVariants = {
       mass: 0.8
     }
   },
-  exit: { 
-    opacity: 0, 
+  exit: {
+    opacity: 0,
     y: -8,
     filter: 'blur(2px)',
     transition: {
@@ -98,11 +98,10 @@ function PageWrapper({ title, actions, children, isFixed = false }) {
   const { onMobileMenuToggle } = useOutletContext();
 
   return (
-    <motion.main 
-      id="main-content" 
-      className={`flex flex-col px-2 sm:px-3 md:pl-6 md:pr-4 pt-2 sm:pt-3 md:pt-4 ${
-        isFixed ? 'h-screen overflow-hidden pb-0' : 'flex-1 pb-2 sm:pb-3 md:pb-4'
-      }`}
+    <motion.main
+      id="main-content"
+      className={`flex flex-col px-2 sm:px-3 md:pl-6 md:pr-4 pt-2 sm:pt-3 md:pt-4 ${isFixed ? 'h-screen overflow-hidden pb-0' : 'flex-1 pb-2 sm:pb-3 md:pb-4'
+        }`}
       style={isFixed ? { height: '100dvh' } : {}}
       variants={pageTransitionVariants}
       initial="initial"
@@ -110,7 +109,7 @@ function PageWrapper({ title, actions, children, isFixed = false }) {
       exit="exit"
     >
       {/* Mobile header - only visible when sidebar is hidden */}
-      <motion.div 
+      <motion.div
         className="lg:hidden mb-2 sm:mb-3 flex items-center gap-2 sm:gap-3 flex-shrink-0"
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
@@ -125,7 +124,7 @@ function PageWrapper({ title, actions, children, isFixed = false }) {
         >
           <Menu className="w-5 h-5" />
         </motion.button>
-        <motion.h1 
+        <motion.h1
           className="text-base sm:text-lg font-bold text-neutral-900 truncate flex-1"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -143,9 +142,8 @@ function PageWrapper({ title, actions, children, isFixed = false }) {
       <Suspense fallback={<PageLoader />}>
         {/* This container allows the page content to scroll internally if needed, 
             OR expand to fill height if the page is designed that way (like AddTextPage) */}
-        <div className={`flex-1 ${
-          isFixed ? 'min-h-0 overflow-hidden flex flex-col pb-2 sm:pb-3 md:pb-4' : ''
-        }`}>
+        <div className={`flex-1 ${isFixed ? 'min-h-0 overflow-hidden flex flex-col pb-2 sm:pb-3 md:pb-4' : ''
+          }`}>
           {children}
         </div>
       </Suspense>
@@ -207,8 +205,8 @@ function AppContent() {
           } />
 
           <Route path="knowledge-base" element={
-            <PageWrapper 
-              title="Knowledge Base" 
+            <PageWrapper
+              title="Knowledge Base"
               actions={<RefreshButton eventName="refresh:knowledge-base" />}
             >
               <KnowledgeBasePage />
@@ -252,8 +250,8 @@ function AppContent() {
           } />
 
           <Route path="archive" element={
-            <PageWrapper 
-              title="Archive" 
+            <PageWrapper
+              title="Archive"
               actions={<RefreshButton eventName="refresh:archive" />}
             >
               <ArchivePage />

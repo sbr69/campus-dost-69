@@ -1,3 +1,8 @@
+"""
+Document ingestion pipeline for processing files.
+
+MULTI-TENANCY: All operations are scoped to org_id for data isolation.
+"""
 import time
 from datetime import datetime, timezone
 from fastapi import BackgroundTasks
@@ -14,9 +19,17 @@ from ..processors.chunkers import text_chunker
 
 class IngestionPipeline:
     async def process_file(self, path: str, filename: str, content: bytes = None,
-                           actor: str = "admin", background_tasks: BackgroundTasks = None) -> dict:
+                           actor: str = "admin", org_id: str = None, background_tasks: BackgroundTasks = None) -> dict:
+        """
+        Process a file through the ingestion pipeline.
+        
+        MULTI-TENANCY: org_id MUST be provided for data isolation.
+        """
+        if not org_id:
+            raise ValueError("org_id is required for multi-tenant data isolation")
+        
         start_time = time.perf_counter()
-        logger.info(f"Processing {filename}")
+        logger.info(f"Processing {filename} for org={org_id}")
         
         extract_start = time.perf_counter()
         if path == "virtual_file" and content:
@@ -41,7 +54,6 @@ class IngestionPipeline:
         doc_id = metadata_provider.generate_id()
         
         # Generate embeddings - this now raises EmbeddingError if ANY batch fails
-        # instead of silently returning zero vectors
         embeddings = await embedding_provider.generate_embeddings(chunks)
         
         vector_chunks_data = []
@@ -55,7 +67,8 @@ class IngestionPipeline:
                 "metadata": {"filename": filename}
             })
         
-        v_count = await vector_storage_provider.store_vectors(doc_id, vector_chunks_data)
+        # MULTI-TENANCY: Pass org_id to vector storage
+        v_count = await vector_storage_provider.store_vectors(org_id, doc_id, vector_chunks_data)
         embed_elapsed = (time.perf_counter() - embed_start) * 1000
 
         if content is None:
@@ -71,27 +84,29 @@ class IngestionPipeline:
             meta_start = time.perf_counter()
             meta = {
                 "document_id": doc_id,
+                "org_id": org_id,  # CRITICAL: Always set org_id in metadata
                 "filename": filename,
                 "storage_path": storage_data["storage_path"],
                 "storage_url": storage_data["storage_url"],
-                "storage_sha": storage_data.get("storage_sha"),  # Optional field for providers that support it
+                "storage_sha": storage_data.get("storage_sha"),
                 "raw_text": raw_text,
                 "chunk_count": len(chunks),
                 "vector_count": v_count,
                 "file_size": len(content),
                 "status": "active",
-                "archived": False,  # Explicitly set for single collection pattern
+                "archived": False,
                 "created_at": datetime.now(timezone.utc),
                 "updated_at": datetime.now(timezone.utc),
                 "created_by": actor
             }
-            await metadata_provider.create_document(doc_id, meta, archived=False)
+            # MULTI-TENANCY: Pass org_id to metadata provider
+            await metadata_provider.create_document(org_id, doc_id, meta, archived=False)
             meta_elapsed = (time.perf_counter() - meta_start) * 1000
         except Exception as e:
             # Cleanup: delete orphaned vectors if storage or metadata creation fails
             logger.error(f"Storage/metadata creation failed for {filename}, cleaning up vectors: {e}")
             try:
-                await vector_storage_provider.delete_vectors(doc_id)
+                await vector_storage_provider.delete_vectors(org_id, doc_id)
                 logger.info(f"Cleaned up {v_count} orphaned vectors for failed upload: {doc_id}")
             except Exception as cleanup_error:
                 logger.error(f"Failed to cleanup vectors for {doc_id}: {cleanup_error}")
@@ -100,7 +115,7 @@ class IngestionPipeline:
         total_elapsed = (time.perf_counter() - start_time) * 1000
 
         logger.info(
-            f"File processed: {filename} | "
+            f"File processed: {filename} org={org_id} | "
             f"Extract: {extract_elapsed:.1f}ms | "
             f"Clean/Chunk: {clean_elapsed:.1f}ms | "
             f"Embed: {embed_elapsed:.1f}ms | "
@@ -110,19 +125,18 @@ class IngestionPipeline:
         )
 
         if background_tasks:
+            # MULTI-TENANCY: Pass org_id to activity and metrics providers
             background_tasks.add_task(
-                activity_provider.log_activity, "document_uploaded", actor, "document", doc_id, {"filename": filename}
+                activity_provider.log_activity, org_id, "document_uploaded", actor, "document", doc_id, {"filename": filename}
             )
-            # Use atomic increments instead of expensive full recalculation
             from ..providers.database.metrics import metrics_provider
-            background_tasks.add_task(metrics_provider.increment_document_counts, active_delta=1, vectors_delta=v_count)
-            background_tasks.add_task(metrics_provider.update_total_size, len(content))
+            background_tasks.add_task(metrics_provider.increment_document_counts, org_id, active_delta=1, vectors_delta=v_count)
+            background_tasks.add_task(metrics_provider.update_total_size, org_id, len(content))
         else:
-            await activity_provider.log_activity("document_uploaded", actor, "document", doc_id, {"filename": filename})
-            # Use atomic increments instead of expensive full recalculation
+            await activity_provider.log_activity(org_id, "document_uploaded", actor, "document", doc_id, {"filename": filename})
             from ..providers.database.metrics import metrics_provider
-            await metrics_provider.increment_document_counts(active_delta=1, vectors_delta=v_count)
-            await metrics_provider.update_total_size(len(content))
+            await metrics_provider.increment_document_counts(org_id, active_delta=1, vectors_delta=v_count)
+            await metrics_provider.update_total_size(org_id, len(content))
 
         return {
             "status": "success",
@@ -132,17 +146,23 @@ class IngestionPipeline:
             "storage_url": storage_data.get("storage_url")
         }
 
-    async def restore_document(self, archive_id: str, actor: str, background_tasks: BackgroundTasks) -> dict:
+    async def restore_document(self, org_id: str, archive_id: str, actor: str, background_tasks: BackgroundTasks) -> dict:
         """
         Restore an archived document by updating its archived flag to False.
+        
+        MULTI-TENANCY: org_id MUST be provided for data isolation.
         
         IMPORTANT: This preserves the original document ID to maintain consistency with:
         - Dropbox storage (files are stored with document_id in path)
         - Vector store (vectors reference parent_doc_id)
         - Any external references to the document
         """
+        if not org_id:
+            raise ValueError("org_id is required for multi-tenant data isolation")
+        
         start_time = time.perf_counter()
-        archived = await metadata_provider.get_document(archive_id, archived=True)
+        # MULTI-TENANCY: Pass org_id to get archived document
+        archived = await metadata_provider.get_document(org_id, archive_id, archived=True)
         if not archived:
             raise NotFoundError("Archive not found")
         
@@ -154,16 +174,15 @@ class IngestionPipeline:
         
         # Restore vectors first (set archived=False on existing vectors)
         process_start = time.perf_counter()
-        v_count = await vector_storage_provider.restore_vectors(doc_id)
+        # MULTI-TENANCY: Pass org_id to vector storage
+        v_count = await vector_storage_provider.restore_vectors(org_id, doc_id)
         
         if v_count == 0:
-            # No archived vectors found - this shouldn't happen if archive worked correctly
-            # Regenerate embeddings as fallback (slow path)
+            # No archived vectors found - regenerate embeddings as fallback
             logger.warning(f"No archived vectors found for {doc_id}, regenerating embeddings")
             cleaned_text = text_cleaner.clean(raw_text)
             chunks = await text_chunker.chunk(cleaned_text)
             
-            # Generate embeddings and prepare vector data
             embeddings = await embedding_provider.generate_embeddings(chunks)
             vector_chunks_data = []
             for i, (chunk_text, embedding) in enumerate(zip(chunks, embeddings)):
@@ -177,7 +196,8 @@ class IngestionPipeline:
                     "created_at": datetime.now(timezone.utc),
                     "metadata": {"filename": filename}
                 })
-            v_count = await vector_storage_provider.store_vectors(doc_id, vector_chunks_data)
+            # MULTI-TENANCY: Pass org_id to vector storage
+            v_count = await vector_storage_provider.store_vectors(org_id, doc_id, vector_chunks_data)
         else:
             logger.info(f"Restored {v_count} vectors from archive for {doc_id}")
         
@@ -185,10 +205,11 @@ class IngestionPipeline:
         
         # Update the document metadata to set archived=False (in-place update)
         meta_start = time.perf_counter()
-        await metadata_provider.update_document(doc_id, {
+        # MULTI-TENANCY: Pass org_id to metadata provider
+        await metadata_provider.update_document(org_id, doc_id, {
             "archived": False,
-            "archived_at": None,  # Clear archived timestamp
-            "archived_by": None,  # Clear archived_by
+            "archived_at": None,
+            "archived_by": None,
             "updated_at": datetime.now(timezone.utc),
             "restored_at": datetime.now(timezone.utc),
             "restored_by": actor,
@@ -199,7 +220,7 @@ class IngestionPipeline:
         total_elapsed = (time.perf_counter() - start_time) * 1000
         
         logger.info(
-            f"Document restored: {filename} (ID: {doc_id}) | "
+            f"Document restored: {filename} (ID: {doc_id}) org={org_id} | "
             f"Vectors: {v_count} | "
             f"Process: {process_elapsed:.1f}ms | "
             f"Meta: {meta_elapsed:.1f}ms | "
@@ -207,10 +228,11 @@ class IngestionPipeline:
         )
         
         # Use atomic increments for restored document
+        # MULTI-TENANCY: Pass org_id to metrics provider
         from ..providers.database.metrics import metrics_provider
-        background_tasks.add_task(metrics_provider.increment_document_counts, active_delta=1, archived_delta=-1)
+        background_tasks.add_task(metrics_provider.increment_document_counts, org_id, active_delta=1, archived_delta=-1)
         background_tasks.add_task(
-            activity_provider.log_activity, "document_restored", actor, "document", doc_id, {"filename": filename}
+            activity_provider.log_activity, org_id, "document_restored", actor, "document", doc_id, {"filename": filename}
         )
         
         return {"document_id": doc_id}

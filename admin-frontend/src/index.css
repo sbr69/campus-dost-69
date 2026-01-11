@@ -42,8 +42,13 @@
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .skeleton-shimmer {
@@ -84,6 +89,7 @@
   }
 
   @media (min-width: 768px) {
+
     input,
     textarea,
     select {
@@ -248,6 +254,7 @@
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -268,6 +275,7 @@
     transform: translateY(100%);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -280,15 +288,20 @@
 
 /* Blob animation for login background */
 @keyframes blob {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translate(0, 0) scale(1);
   }
+
   25% {
     transform: translate(20px, -30px) scale(1.05);
   }
+
   50% {
     transform: translate(-20px, 20px) scale(0.95);
   }
+
   75% {
     transform: translate(10px, 10px) scale(1.02);
   }

@@ -1,6 +1,8 @@
 """
-Batch operations router for admin backend
-Handles bulk operations like batch download
+Batch operations router for admin backend.
+
+MULTI-TENANCY: All operations are scoped to the user's organization.
+Handles bulk operations like batch download.
 """
 import io
 import time
@@ -12,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List
 from ..config import settings, logger
-from ..dependencies import require_admin
+from ..dependencies import require_read_access, UserContext
 from ..utils.limiter import limiter
 from ..providers.database.metadata import metadata_provider
 from ..providers.storage import storage_provider
@@ -32,10 +34,12 @@ class BatchDownloadRequest(BaseModel):
 async def batch_download(
     request: Request,
     req: BatchDownloadRequest,
-    user: dict = Depends(require_admin)
+    user: UserContext = Depends(require_read_access)
 ):
     """
-    Download multiple documents as a ZIP archive
+    Download multiple documents as a ZIP archive.
+    
+    MULTI-TENANCY: Only downloads documents belonging to user's organization.
     
     - **document_ids**: List of document IDs to download
     - **source**: Source location - "knowledge-base" (active) or "archive"
@@ -54,12 +58,13 @@ async def batch_download(
     # Determine if downloading from archive
     is_archived = req.source == "archive"
     
-    logger.info(f"Batch download requested: {len(req.document_ids)} documents from {req.source}")
+    logger.info(f"Batch download requested for org={user.org_id}: {len(req.document_ids)} documents from {req.source}")
     
     # Fetch all document metadata concurrently
+    # MULTI-TENANCY: Pass org_id to get documents
     fetch_start = time.perf_counter()
     doc_tasks = [
-        metadata_provider.get_document(doc_id, archived=is_archived)
+        metadata_provider.get_document(user.org_id, doc_id, archived=is_archived)
         for doc_id in req.document_ids
     ]
     docs = await asyncio.gather(*doc_tasks, return_exceptions=True)
@@ -69,16 +74,16 @@ async def batch_download(
     valid_docs = []
     for i, doc in enumerate(docs):
         if isinstance(doc, Exception):
-            logger.warning(f"Failed to fetch document {req.document_ids[i]}: {doc}")
+            logger.warning(f"Failed to fetch document {req.document_ids[i]} for org={user.org_id}: {doc}")
         elif doc is None:
-            logger.warning(f"Document not found: {req.document_ids[i]}")
+            logger.warning(f"Document not found or not accessible: {req.document_ids[i]} for org={user.org_id}")
         else:
             valid_docs.append((req.document_ids[i], doc))
     
     if not valid_docs:
         raise NotFoundError("No valid documents found")
     
-    logger.info(f"Fetched metadata for {len(valid_docs)}/{len(req.document_ids)} documents | {fetch_elapsed:.1f}ms")
+    logger.info(f"Fetched metadata for {len(valid_docs)}/{len(req.document_ids)} documents for org={user.org_id} | {fetch_elapsed:.1f}ms")
     
     # Download all files concurrently
     download_start = time.perf_counter()
@@ -128,13 +133,13 @@ async def batch_download(
     # Prepare ZIP for download
     zip_buffer.seek(0)
     
-    # Generate filename with timestamp
+    # Generate filename with timestamp and org
     timestamp = datetime.now().strftime("%Y-%m-%d")
     source_name = "archived" if is_archived else "documents"
     zip_filename = f"{source_name}_{timestamp}.zip"
     
     logger.info(
-        f"Batch download complete: {successful_files} files, {failed_files} errors | "
+        f"Batch download complete for org={user.org_id}: {successful_files} files, {failed_files} errors | "
         f"Fetch: {fetch_elapsed:.1f}ms | Download: {download_elapsed:.1f}ms | "
         f"ZIP: {zip_elapsed:.1f}ms | Total: {total_elapsed:.1f}ms"
     )

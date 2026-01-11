@@ -1,24 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, Eye, EyeOff, Save, Check, Shield, Users, Plus, Trash2, RefreshCw, UserPlus } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff, Save, Check, Shield, Users, Plus, Trash2, RefreshCw, UserPlus, Building2, Crown } from 'lucide-react';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Modal } from '../components/UI/Modal';
+import { LoadingSpinner } from '../components/UI/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { api } from '../services/api';
 import { cn } from '../utils/helpers';
 
 export default function UserSettings() {
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
   
-  const isSuperAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+  // Check if user is superuser (has full access)
+  const isSuperuser = user?.role === 'superuser' || user?.role === 'super_admin';
+  // Admin can manage some settings but not team
+  const isAdmin = user?.role === 'admin' || isSuperuser;
   
   const [formData, setFormData] = useState({
     username: user?.username || '',
-    fullName: user?.fullName || '',
+    fullName: user?.fullName || user?.full_name || '',
     email: user?.email || '',
-    organisationName: user?.organisationName || '',
+    organisationName: user?.organisationName || user?.org_id || '',
+    orgId: user?.org_id || '',
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
@@ -34,6 +40,7 @@ export default function UserSettings() {
 
   // Team Management State
   const [teamMembers, setTeamMembers] = useState([]);
+  const [teamLoading, setTeamLoading] = useState(false);
   const [showAddMemberForm, setShowAddMemberForm] = useState(false);
   const [showEditMemberForm, setShowEditMemberForm] = useState(false);
   const [editingMemberId, setEditingMemberId] = useState(null);
@@ -42,7 +49,7 @@ export default function UserSettings() {
     fullName: '',
     email: '',
     password: '',
-    role: 'member'
+    role: 'admin'
   });
   const [showNewMemberPassword, setShowNewMemberPassword] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState({}); // Track which member passwords are visible
@@ -57,6 +64,41 @@ export default function UserSettings() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // Load team members from API (superuser only)
+  const loadTeamMembers = useCallback(async () => {
+    if (!isSuperuser) return;
+    
+    setTeamLoading(true);
+    try {
+      const response = await api.users.list();
+      if (response.status === 'success' && response.users) {
+        // Filter out current user from the list
+        const members = response.users.filter(u => u.uid !== user?.uid);
+        setTeamMembers(members.map(u => ({
+          id: u.uid,
+          username: u.username,
+          fullName: u.full_name || '',
+          email: u.email || '',
+          role: u.role || 'admin',
+          status: u.status || 'active',
+          createdAt: u.created_at
+        })));
+      }
+    } catch (err) {
+      console.error('Failed to load team members:', err);
+      showError('Failed to load team members');
+    } finally {
+      setTeamLoading(false);
+    }
+  }, [isSuperuser, user?.uid, showError]);
+
+  // Load team on mount (for superuser)
+  useEffect(() => {
+    if (isSuperuser) {
+      loadTeamMembers();
+    }
+  }, [isSuperuser, loadTeamMembers]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -259,11 +301,13 @@ export default function UserSettings() {
     }));
   };
 
-  const handleAddTeamMember = () => {
+  const handleAddTeamMember = async () => {
     const newErrors = {};
 
     if (!newMember.username || newMember.username.trim() === '') {
       newErrors.username = 'Username is required';
+    } else if (newMember.username.length < 3) {
+      newErrors.username = 'Username must be at least 3 characters';
     }
     if (!newMember.fullName || newMember.fullName.trim() === '') {
       newErrors.fullName = 'Full name is required';
@@ -275,6 +319,8 @@ export default function UserSettings() {
     }
     if (!newMember.password || newMember.password.trim() === '') {
       newErrors.password = 'Password is required';
+    } else if (newMember.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -282,26 +328,65 @@ export default function UserSettings() {
       return;
     }
 
-    const member = {
-      id: Date.now().toString(),
-      ...newMember,
-      createdAt: new Date().toISOString()
-    };
+    setIsLoading(true);
+    try {
+      // Call API to create user
+      const response = await api.users.create({
+        username: newMember.username.trim(),
+        email: newMember.email.trim(),
+        password: newMember.password,
+        full_name: newMember.fullName.trim(),
+        role: newMember.role
+      });
 
-    setTeamMembers(prev => [...prev, member]);
-    setNewMember({
-      username: '',
-      fullName: '',
-      email: '',
-      password: '',
-      role: 'member'
-    });
-    setMemberErrors({});
-    setShowAddMemberForm(false);
+      if (response.status === 'success') {
+        showSuccess(`Team member ${newMember.username} created successfully`);
+        
+        // Refresh team list
+        await loadTeamMembers();
+        
+        // Reset form
+        setNewMember({
+          username: '',
+          fullName: '',
+          email: '',
+          password: '',
+          role: 'admin'
+        });
+        setMemberErrors({});
+        setShowAddMemberForm(false);
+      }
+    } catch (err) {
+      console.error('Failed to create team member:', err);
+      const errorMsg = err.message || err.data?.detail || 'Failed to create team member';
+      showError(errorMsg);
+      
+      // Map specific errors to fields
+      if (errorMsg.toLowerCase().includes('email')) {
+        setMemberErrors({ email: errorMsg });
+      } else if (errorMsg.toLowerCase().includes('username')) {
+        setMemberErrors({ username: errorMsg });
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleRemoveTeamMember = (id) => {
-    setTeamMembers(prev => prev.filter(member => member.id !== id));
+  const handleRemoveTeamMember = async (memberId) => {
+    setIsLoading(true);
+    try {
+      const response = await api.users.delete(memberId);
+      if (response.status === 'success') {
+        showSuccess('Team member removed successfully');
+        await loadTeamMembers();
+      }
+    } catch (err) {
+      console.error('Failed to remove team member:', err);
+      showError(err.message || 'Failed to remove team member');
+    } finally {
+      setIsLoading(false);
+      setConfirmingDeleteId(null);
+    }
   };
 
   const handleEditTeamMember = (member) => {
@@ -310,28 +395,21 @@ export default function UserSettings() {
       username: member.username,
       fullName: member.fullName || '',
       email: member.email || '',
-      password: member.password,
+      password: '', // Don't prefill password
       role: member.role
     });
     setShowEditMemberForm(true);
   };
 
-  const handleSaveTeamMember = () => {
+  const handleSaveTeamMember = async () => {
     const newErrors = {};
 
-    if (!newMember.username || newMember.username.trim() === '') {
-      newErrors.username = 'Username is required';
-    }
     if (!newMember.fullName || newMember.fullName.trim() === '') {
       newErrors.fullName = 'Full name is required';
     }
-    if (!newMember.email || newMember.email.trim() === '') {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newMember.email)) {
-      newErrors.email = 'Invalid email format';
-    }
-    if (!newMember.password || newMember.password.trim() === '') {
-      newErrors.password = 'Password is required';
+    // Password is optional for updates
+    if (newMember.password && newMember.password.length > 0 && newMember.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -339,23 +417,42 @@ export default function UserSettings() {
       return;
     }
 
-    setTeamMembers(prev => prev.map(member => 
-      member.id === editingMemberId 
-        ? { ...member, ...newMember }
-        : member
-    ));
-    
-    setEditingMemberId(null);
-    setShowEditMemberForm(false);
-    setNewMember({
-      username: '',
-      fullName: '',
-      email: '',
-      password: '',
-      role: 'member'
-    });
-    setMemberErrors({});
-    showSuccess('Team member updated successfully');
+    setIsLoading(true);
+    try {
+      // Update user via API
+      const updateData = {
+        full_name: newMember.fullName.trim(),
+        role: newMember.role
+      };
+      
+      const response = await api.users.update(editingMemberId, updateData);
+      
+      // If password provided, also reset password
+      if (newMember.password && newMember.password.length >= 8) {
+        await api.users.resetPassword(editingMemberId, newMember.password);
+      }
+      
+      if (response.status === 'success') {
+        showSuccess('Team member updated successfully');
+        await loadTeamMembers();
+        
+        setEditingMemberId(null);
+        setShowEditMemberForm(false);
+        setNewMember({
+          username: '',
+          fullName: '',
+          email: '',
+          password: '',
+          role: 'admin'
+        });
+        setMemberErrors({});
+      }
+    } catch (err) {
+      console.error('Failed to update team member:', err);
+      showError(err.message || 'Failed to update team member');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancelEditMember = () => {

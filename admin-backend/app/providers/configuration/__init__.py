@@ -1,8 +1,12 @@
-"""Generic configuration provider - implementation selected by configuration."""
+"""
+Configuration provider - supports both GitHub and Firestore implementations.
+
+MULTI-TENANCY: Uses Firestore implementation with org-specific LRU cache.
+"""
 from .interface import ConfigProviderInterface
-from .github_impl import GitHubConfigProvider
+from .firestore_impl import firestore_config_provider, FirestoreConfigProvider
 
-# Factory pattern - only GitHub implementation for now
-config_provider: ConfigProviderInterface = GitHubConfigProvider()
+# Use Firestore implementation for multi-tenant org-specific instructions
+config_provider: FirestoreConfigProvider = firestore_config_provider
 
-__all__ = ['config_provider', 'ConfigProviderInterface']
+__all__ = ['config_provider', 'ConfigProviderInterface', 'FirestoreConfigProvider']

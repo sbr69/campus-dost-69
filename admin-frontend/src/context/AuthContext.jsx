@@ -27,13 +27,14 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Perform login API call
+   * Unified endpoint handles both org_id and email login on backend
    */
-  const performLogin = useCallback(async (username, password) => {
+  const performLogin = useCallback(async (identifier, password) => {
     try {
       const response = await fetch(`${API_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: identifier, password }),
       });
 
       const data = await response.json();
@@ -57,13 +58,13 @@ export const AuthProvider = ({ children }) => {
       // Check for existing token in sessionStorage or localStorage
       let existingToken = sessionStorage.getItem(TOKEN_STORAGE_KEY);
       let userInfo = sessionStorage.getItem(USER_INFO_KEY);
-      
+
       // If not in session, check local storage (remember me)
       if (!existingToken) {
         existingToken = localStorage.getItem(TOKEN_STORAGE_KEY);
         userInfo = localStorage.getItem(USER_INFO_KEY);
       }
-      
+
       if (existingToken && userInfo) {
         // We have an active session
         try {
@@ -81,7 +82,7 @@ export const AuthProvider = ({ children }) => {
           localStorage.removeItem(USER_INFO_KEY);
         }
       }
-      
+
       setIsLoading(false);
     };
 
@@ -94,16 +95,16 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const handleAuthExpired = async () => {
       console.log('Token expired, logging out...');
-      
+
       // Force logout
       setUser(null);
       setToken(null);
       setIsAuthenticated(false);
-      
+
       // Clear session storage
       sessionStorage.removeItem(TOKEN_STORAGE_KEY);
       sessionStorage.removeItem(USER_INFO_KEY);
-      
+
       // Clear local storage
       localStorage.removeItem(TOKEN_STORAGE_KEY);
       localStorage.removeItem(USER_INFO_KEY);
@@ -114,47 +115,53 @@ export const AuthProvider = ({ children }) => {
   }, [performLogin]);
 
   /**
-   * Login with username and password
-   * @param {string} username 
+   * Login with username/email and password
+   * @param {string} identifier - Username or email address
    * @param {string} password 
    * @param {boolean} rememberMe - If true, store credentials for auto-login on next visit
    */
-  const login = async (username, password, rememberMe = false) => {
+  const login = async (identifier, password, rememberMe = false) => {
     try {
-      const result = await performLogin(username, password);
+      const result = await performLogin(identifier, password);
 
       if (result.success) {
         const userData = result.user;
         const newToken = userData.token;
-        
+
         // Always store token in sessionStorage (cleared on tab/browser close)
         sessionStorage.setItem(TOKEN_STORAGE_KEY, newToken);
         sessionStorage.setItem(USER_INFO_KEY, JSON.stringify({
+          uid: userData.uid,
           username: userData.username,
-          role: userData.role
+          email: userData.email,
+          role: userData.role,
+          org_id: userData.org_id
         }));
-        
+
         // Handle "remember me" - store token for auto-login
         if (rememberMe) {
           localStorage.setItem(REMEMBER_ME_KEY, 'true');
           localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
           localStorage.setItem(USER_INFO_KEY, JSON.stringify({
+            uid: userData.uid,
             username: userData.username,
-            role: userData.role
+            email: userData.email,
+            role: userData.role,
+            org_id: userData.org_id
           }));
-          localStorage.setItem(REMEMBERED_USERNAME_KEY, username);
+          localStorage.setItem(REMEMBERED_USERNAME_KEY, identifier);
         } else {
           localStorage.setItem(REMEMBER_ME_KEY, 'false');
           localStorage.removeItem(TOKEN_STORAGE_KEY);
           localStorage.removeItem(USER_INFO_KEY);
-          // Still remember username for convenience (just pre-fills form)
-          localStorage.setItem(REMEMBERED_USERNAME_KEY, username);
+          // Still remember identifier for convenience (just pre-fills form)
+          localStorage.setItem(REMEMBERED_USERNAME_KEY, identifier);
         }
-        
+
         setToken(newToken);
         setUser(userData);
         setIsAuthenticated(true);
-        
+
         return { success: true };
       } else {
         return { success: false, error: result.error };
@@ -178,21 +185,73 @@ export const AuthProvider = ({ children }) => {
     } catch (e) {
       // Ignore network errors on logout
     }
-    
+
     // Clear all auth state
     setUser(null);
     setToken(null);
     setIsAuthenticated(false);
-    
+
     // Clear session storage (token)
     sessionStorage.removeItem(TOKEN_STORAGE_KEY);
     sessionStorage.removeItem(USER_INFO_KEY);
-    
+
     // Clear remembered token (but keep remember_me preference for UX)
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     localStorage.removeItem(USER_INFO_KEY);
-    
+
     return { success: true };
+  };
+
+  /**
+   * Register a new organization and user
+   * @param {string} email 
+   * @param {string} organisationId 
+   * @param {string} password 
+   * @param {string} organisationName 
+   * @param {string} username - Optional, defaults to organisationId
+   */
+  const register = async (email, organisationId, password, organisationName, username = null) => {
+    try {
+      const response = await fetch(`${API_URL}/api/v1/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          organisation_id: organisationId,
+          password,
+          organisation_name: organisationName,
+          username: username || organisationId
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.status === 'success') {
+        const userData = data.user;
+        const newToken = userData.token;
+
+        // Store token in sessionStorage
+        sessionStorage.setItem(TOKEN_STORAGE_KEY, newToken);
+        sessionStorage.setItem(USER_INFO_KEY, JSON.stringify({
+          uid: userData.uid,
+          username: userData.username,
+          role: userData.role,
+          org_id: userData.org_id,
+          email: userData.email
+        }));
+
+        setToken(newToken);
+        setUser(userData);
+        setIsAuthenticated(true);
+
+        return { success: true };
+      } else {
+        return { success: false, error: data.detail || 'Registration failed' };
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      return { success: false, error: 'Network error. Please check if backend is running.' };
+    }
   };
 
   /**
@@ -209,6 +268,7 @@ export const AuthProvider = ({ children }) => {
     isLoading,
     login,
     logout,
+    register,
     getToken,
   };
 

@@ -38,3 +38,7 @@ class EmbeddingError(AppException):
 class GitHubError(AppException):
     def __init__(self, message: str = "GitHub operation failed", details: Optional[Any] = None):
         super().__init__(message, status_code=502, details=details)
+
+class DatabaseError(AppException):
+    def __init__(self, message: str = "Database operation failed", details: Optional[Any] = None):
+        super().__init__(message, status_code=500, details=details)

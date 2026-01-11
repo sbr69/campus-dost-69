@@ -109,23 +109,58 @@ const SidebarItem = memo(function SidebarItem({ item, onClick, index = 0 }) {
 });
 
 const UserSection = memo(function UserSection({ user, onLogout, onSettingsClick }) {
+  // Use username or email as display name, fallback to org_id
+  const displayName = user?.username || user?.email?.split('@')[0] || user?.org_id || 'User';
+  
+  // Format role for display - handle different role formats
+  const formatRole = (role) => {
+    if (!role) return 'User';
+    // Handle underscore-separated roles like 'super_admin'
+    const formatted = role.replace(/_/g, ' ');
+    // Capitalize each word
+    return formatted.split(' ').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(' ');
+  };
+  
+  const displayRole = formatRole(user?.role);
+  
+  // Show org_id as subtitle for multi-tenant context
+  const displayOrg = user?.org_id || '';
+  
+  // Generate consistent avatar based on uid or username
+  const avatarSeed = user?.uid || user?.username || user?.org_id || 'default';
+  
+  // Check if user has elevated privileges (superuser/admin)
+  const isSuperuser = user?.role === 'superuser' || user?.role === 'super_admin';
+  
   return (
     <div className="mt-3 pt-3 border-t border-neutral-200 px-2">
       <div className="bg-neutral-50 rounded-lg border border-neutral-200 p-2">
         <div className="flex items-center gap-3 px-2 py-1.5">
           <img
-            src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=default"}
+            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`}
             className="w-8 h-8 rounded-full border border-neutral-200 flex-shrink-0"
             alt=""
             aria-hidden="true"
           />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-neutral-900 truncate">
-              {user?.name || "User"}
+            <p className="text-sm font-medium text-neutral-900 truncate" title={displayName}>
+              {displayName}
             </p>
-            <p className="text-xs text-neutral-500 capitalize truncate">
-              {user?.role || "Admin"}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p className={`text-xs truncate ${isSuperuser ? 'text-primary-600 font-medium' : 'text-neutral-500'}`} title={displayRole}>
+                {displayRole}
+              </p>
+              {displayOrg && (
+                <>
+                  <span className="text-neutral-300">•</span>
+                  <p className="text-xs text-neutral-400 truncate" title={displayOrg}>
+                    {displayOrg}
+                  </p>
+                </>
+              )}
+            </div>
           </div>
           <button
             onClick={onSettingsClick}
@@ -177,12 +212,12 @@ export function Sidebar({ isMobileOpen, onCloseMobile }) {
     logout();
     navigate('/login');
     if (onCloseMobile) onCloseMobile();
-  }, [logout, navigate]);
+  }, [logout, navigate, onCloseMobile]);
 
   const handleOpenSettings = useCallback(() => {
     navigate('/user-settings');
     if (onCloseMobile) onCloseMobile();
-  }, [navigate]);
+  }, [navigate, onCloseMobile]);
 
   return (
     <>
