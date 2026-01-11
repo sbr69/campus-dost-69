@@ -34,8 +34,8 @@ class UserContext(BaseModel):
     
     @property
     def can_read(self) -> bool:
-        """Check if user has read permissions (all roles except analyser)."""
-        return self.role in ("superuser", "admin", "viewer")
+        """Check if user has read permissions (superuser, admin, or assistant)."""
+        return self.role in ("superuser", "admin", "assistant")
     
     @property
     def can_manage_users(self) -> bool:
@@ -69,6 +69,12 @@ async def get_current_user(
     MULTI-TENANCY: Returns UserContext with org_id and uid extracted from token.
     Supports both new format (with org_id/uid claims) and legacy format (extract from sub).
     
+    SECURITY CRITICAL:
+    - org_id is ALWAYS extracted from the verified JWT token
+    - Token signature is cryptographically verified before extracting claims
+    - org_id cannot be overridden by request parameters or headers
+    - Cross-org access is impossible as long as JWT_SECRET is secure
+    
     Security Claims Expected:
         - uid: User's unique identifier (preferred)
         - sub: Subject (fallback for uid in legacy tokens)
@@ -95,12 +101,39 @@ async def get_current_user(
     
     # Extract uid: prefer dedicated claim, fallback to sub for legacy tokens
     uid = payload.get("uid") or payload.get("sub")
-    role = payload.get("role", "viewer")  # Default to viewer (read-only) for safety
+    if not uid:
+        logger.warning("Token missing both uid and sub claims")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Invalid token: missing user identifier",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    role = payload.get("role", "assistant")  # Default to assistant (read-only) for safety
     
     # Extract org_id: prefer explicit claim, fallback to extracting from uid
     org_id = payload.get("org_id")
     if not org_id:
         org_id = extract_org_id_from_uid(uid)
+    
+    # SECURITY: Validate org_id format and length to prevent injection attacks
+    if not org_id or len(org_id) > 100:
+        logger.warning(f"Invalid org_id in token: {org_id[:20] if org_id else 'None'}...")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Invalid token: invalid organization identifier",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    # SECURITY: Validate org_id contains only safe characters
+    import re
+    if not re.match(r'^[a-zA-Z0-9_-]+$', org_id):
+        logger.warning(f"Suspicious org_id format in token: {org_id[:20]}...")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Invalid token: malformed organization identifier",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
     
     user = UserContext(
         uid=uid,
@@ -128,7 +161,7 @@ async def get_current_user(
 # Role-based access control dependencies
 
 def require_read_access(user: UserContext = Depends(get_current_user)) -> UserContext:
-    """Require at least read permissions (viewer, admin, superuser)."""
+    """Require at least read permissions (assistant, admin, superuser)."""
     if not user.can_read:
         logger.warning(f"Read access denied for {user.uid} with role {user.role}")
         raise HTTPException(

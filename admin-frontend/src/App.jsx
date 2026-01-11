@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { ToastContainer } from './components/UI/ToastContainer';
 import ProtectedRoute from './components/ProtectedRoute';
+import { RoleProtectedRoute } from './components/RoleProtectedRoute';
 import { Sidebar } from './components/AppShell/Sidebar';
 import { Menu, Loader2, RefreshCw } from 'lucide-react';
 
@@ -46,6 +47,7 @@ const BotSettingsPage = lazy(() => import('./pages/BotSettings'));
 const SystemInstructionsPage = lazy(() => import('./pages/SystemInstructionsPage'));
 const ArchivePage = lazy(() => import('./pages/ArchivePage'));
 const UserSettingsPage = lazy(() => import('./pages/UserSettings'));
+const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'));
 
 function PageLoader() {
   return (
@@ -193,6 +195,13 @@ function AppContent() {
           </Suspense>
         } />
 
+        {/* Unauthorized page */}
+        <Route path="/unauthorized" element={
+          <Suspense fallback={<PageLoader />}>
+            <UnauthorizedPage />
+          </Suspense>
+        } />
+
         {/* Protected routes */}
         <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
 
@@ -214,15 +223,19 @@ function AppContent() {
           } />
 
           <Route path="add-document" element={
-            <PageWrapper title="Add Document">
-              <AddDocumentPage />
-            </PageWrapper>
+            <RoleProtectedRoute requiredRoles={['superuser', 'admin']}>
+              <PageWrapper title="Add Document">
+                <AddDocumentPage />
+              </PageWrapper>
+            </RoleProtectedRoute>
           } />
 
           <Route path="add-text" element={
-            <PageWrapper title="Add Text" isFixed={true}>
-              <AddTextPage />
-            </PageWrapper>
+            <RoleProtectedRoute requiredRoles={['superuser', 'admin']}>
+              <PageWrapper title="Add Text" isFixed={true}>
+                <AddTextPage />
+              </PageWrapper>
+            </RoleProtectedRoute>
           } />
 
           <Route path="query-analytics" element={
@@ -244,18 +257,22 @@ function AppContent() {
           } />
 
           <Route path="system-instructions" element={
-            <PageWrapper title="System Instructions" isFixed={true}>
-              <SystemInstructionsPage />
-            </PageWrapper>
+            <RoleProtectedRoute requiredRoles={['superuser', 'admin']}>
+              <PageWrapper title="System Instructions" isFixed={true}>
+                <SystemInstructionsPage />
+              </PageWrapper>
+            </RoleProtectedRoute>
           } />
 
           <Route path="archive" element={
-            <PageWrapper
-              title="Archive"
-              actions={<RefreshButton eventName="refresh:archive" />}
-            >
-              <ArchivePage />
-            </PageWrapper>
+            <RoleProtectedRoute requiredRoles={['superuser', 'admin']}>
+              <PageWrapper
+                title="Archive"
+                actions={<RefreshButton eventName="refresh:archive" />}
+              >
+                <ArchivePage />
+              </PageWrapper>
+            </RoleProtectedRoute>
           } />
 
           <Route path="user-settings" element={

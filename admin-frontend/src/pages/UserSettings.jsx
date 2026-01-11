@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, Eye, EyeOff, Save, Check, Shield, Users, Plus, Trash2, RefreshCw, UserPlus, Building2, Crown } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff, Save, Check, Shield, Users, Plus, Trash2, RefreshCw, UserPlus, Building2, Crown, Loader2, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Modal } from '../components/UI/Modal';
@@ -55,6 +55,20 @@ export default function UserSettings() {
   const [visiblePasswords, setVisiblePasswords] = useState({}); // Track which member passwords are visible
   const [memberErrors, setMemberErrors] = useState({}); // Track validation errors for team member forms
   const [confirmingDeleteId, setConfirmingDeleteId] = useState(null); // Track which member is confirming deletion
+  
+  // Username availability check
+  const [usernameAvailability, setUsernameAvailability] = useState(null);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [debouncedUsername, setDebouncedUsername] = useState('');
+  const [showRoleTooltip, setShowRoleTooltip] = useState(false);
+  
+  // Debounce username for availability check
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedUsername(newMember.username);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [newMember.username]);
 
   const [showPasswords, setShowPasswords] = useState({
     current: false,
@@ -99,6 +113,38 @@ export default function UserSettings() {
       loadTeamMembers();
     }
   }, [isSuperuser, loadTeamMembers]);
+  
+  // Check username availability
+  useEffect(() => {
+    const checkUsernameAvailability = async () => {
+      if (!debouncedUsername || debouncedUsername.length < 3) {
+        setUsernameAvailability(null);
+        return;
+      }
+      
+      if (!showAddMemberForm) return;
+      
+      setIsCheckingUsername(true);
+      try {
+        // Construct full user ID with org_id prefix
+        const fullUserId = `${user.org_id}_${debouncedUsername}`;
+        
+        // Check if this user ID already exists
+        const response = await api.users.list();
+        if (response.status === 'success' && response.users) {
+          const exists = response.users.some(u => u.uid === fullUserId);
+          setUsernameAvailability(exists ? 'taken' : 'available');
+        }
+      } catch (error) {
+        console.error('Failed to check username availability:', error);
+        setUsernameAvailability(null);
+      } finally {
+        setIsCheckingUsername(false);
+      }
+    };
+    
+    checkUsernameAvailability();
+  }, [debouncedUsername, showAddMemberForm, user?.org_id]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -308,6 +354,10 @@ export default function UserSettings() {
       newErrors.username = 'Username is required';
     } else if (newMember.username.length < 3) {
       newErrors.username = 'Username must be at least 3 characters';
+    } else if (usernameAvailability === 'taken') {
+      newErrors.username = 'Username is already taken';
+    } else if (!/^[a-zA-Z0-9_-]+$/.test(newMember.username)) {
+      newErrors.username = 'Username can only contain letters, numbers, hyphens, and underscores';
     }
     if (!newMember.fullName || newMember.fullName.trim() === '') {
       newErrors.fullName = 'Full name is required';
@@ -353,6 +403,8 @@ export default function UserSettings() {
           password: '',
           role: 'admin'
         });
+        setUsernameAvailability(null);
+        setIsCheckingUsername(false);
         setMemberErrors({});
         setShowAddMemberForm(false);
       }
@@ -463,7 +515,7 @@ export default function UserSettings() {
       fullName: '',
       email: '',
       password: '',
-      role: 'member'
+      role: 'admin'
     });
     setMemberErrors({});
   };
@@ -473,6 +525,10 @@ export default function UserSettings() {
     // Clear error for this field
     if (memberErrors[field]) {
       setMemberErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+    // Reset availability when username changes
+    if (field === 'username') {
+      setUsernameAvailability(null);
     }
   };
 
@@ -580,7 +636,7 @@ export default function UserSettings() {
                     placeholder="Enter your full name"
                     autoFocus
                     disabled={isLoading}
-                    className="w-full px-4 py-2.5 border-2 border-neutral-300 rounded-xl bg-white text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
+                    className="w-full px-4 py-2.5 border-2 border-neutral-300 rounded-xl bg-white text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-primary-500 transition-all"
                   />
                   <div className="flex gap-1.5 sm:gap-2">
                     <motion.button
@@ -675,8 +731,8 @@ export default function UserSettings() {
                     autoFocus
                     disabled={isLoading}
                     className={cn(
-                      "w-full px-4 py-2.5 border-2 rounded-xl bg-white text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 transition-all",
-                      errors.email ? "border-red-300 focus:ring-red-500 focus:border-red-500" : "border-neutral-300 focus:ring-primary-500 focus:border-primary-500"
+                      "w-full px-4 py-2.5 border-2 rounded-xl bg-white text-neutral-900 placeholder-neutral-400 focus:outline-none transition-all",
+                      errors.email ? "border-red-300 focus:border-red-500" : "border-neutral-300 focus:border-primary-500"
                     )}
                   />
                   {errors.email && (
@@ -774,7 +830,7 @@ export default function UserSettings() {
                     placeholder="Enter your organisation name"
                     autoFocus
                     disabled={isLoading}
-                    className="w-full px-4 py-2.5 border-2 border-neutral-300 rounded-xl bg-white text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
+                    className="w-full px-4 py-2.5 border-2 border-neutral-300 rounded-xl bg-white text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-primary-500 transition-all"
                   />
                   <div className="flex gap-1.5 sm:gap-2">
                     <motion.button
@@ -1046,7 +1102,7 @@ export default function UserSettings() {
                 onClick={() => handleChange('twoFactorEnabled', !formData.twoFactorEnabled)}
                 disabled={isLoading}
                 className={cn(
-                  'relative inline-flex h-7 w-14 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 flex-shrink-0 shadow-inner',
+                  'relative inline-flex h-7 w-14 items-center rounded-full transition-all duration-300 focus:outline-none flex-shrink-0 shadow-inner',
                   formData.twoFactorEnabled ? 'bg-gradient-to-r from-primary-600 to-primary-700' : 'bg-neutral-300',
                   isLoading && 'opacity-50 cursor-not-allowed'
                 )}
@@ -1088,7 +1144,7 @@ export default function UserSettings() {
         </motion.div>
 
         {/* Team Management Section - Super Admin Only */}
-        {isSuperAdmin && (
+        {isSuperuser && (
           <motion.div 
             className="bg-white rounded-lg sm:rounded-xl border-2 border-neutral-300/60 shadow-md overflow-hidden"
             variants={cardVariants}
@@ -1147,28 +1203,67 @@ export default function UserSettings() {
                 isOpen={showAddMemberForm}
                 onClose={() => {
                   setShowAddMemberForm(false);
-                  setNewMember({ username: '', fullName: '', email: '', password: '', role: 'member' });
+                  setNewMember({ username: '', fullName: '', email: '', password: '', role: 'admin' });
                   setMemberErrors({});
+                  setUsernameAvailability(null);
+                  setIsCheckingUsername(false);
                 }}
                 title="Add New Team Member"
                 icon={<UserPlus className="w-5 h-5 text-primary-600" />}
               >
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Username */}
-                    <div>
+                    {/* Username with org_id prefix */}
+                    <div className="sm:col-span-2">
                       <label htmlFor="newUsername" className="block text-sm font-medium text-neutral-700 mb-2">
-                        Username
+                        Username <span className="text-xs text-neutral-500">(User ID will be: {user?.org_id}_{newMember.username || '...'} )</span>
                       </label>
-                      <Input
-                        id="newUsername"
-                        type="text"
-                        value={newMember.username}
-                        onChange={(e) => handleNewMemberChange('username', e.target.value)}
-                        placeholder="Enter username"
-                        disabled={isLoading}
-                        error={memberErrors.username}
-                      />
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 font-medium text-sm pointer-events-none z-10">
+                          {user?.org_id}_
+                        </div>
+                        <input
+                          id="newUsername"
+                          type="text"
+                          value={newMember.username}
+                          onChange={(e) => handleNewMemberChange('username', e.target.value)}
+                          placeholder="username"
+                          disabled={isLoading}
+                          className={`w-full pr-12 py-2.5 border-2 rounded-lg transition-all ${
+                            memberErrors.username
+                              ? 'border-red-300 bg-red-50 focus:border-red-500'
+                              : usernameAvailability === 'taken'
+                                ? 'border-red-300 focus:border-red-500'
+                                : usernameAvailability === 'available'
+                                  ? 'border-emerald-300 focus:border-emerald-500'
+                                  : 'border-neutral-300 focus:border-primary-500'
+                          } focus:outline-none`}
+                          style={{ paddingLeft: `${Math.max((user?.org_id?.length || 0) * 9 + 20, 80)}px` }}
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {isCheckingUsername && (
+                            <Loader2 className="w-5 h-5 text-primary-500 animate-spin" />
+                          )}
+                          {!isCheckingUsername && usernameAvailability === 'available' && (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          )}
+                          {!isCheckingUsername && usernameAvailability === 'taken' && (
+                            <XCircle className="w-5 h-5 text-red-500" />
+                          )}
+                        </div>
+                      </div>
+                      {memberErrors.username && (
+                        <p className="text-xs text-red-500 mt-1">{memberErrors.username}</p>
+                      )}
+                      {!memberErrors.username && usernameAvailability === 'available' && newMember.username && (
+                        <p className="text-xs text-emerald-600 mt-1">✓ {newMember.username} is available</p>
+                      )}
+                      {!memberErrors.username && usernameAvailability === 'taken' && newMember.username && (
+                        <p className="text-xs text-red-500 mt-1">✗ {newMember.username} is already taken</p>
+                      )}
+                      {!memberErrors.username && isCheckingUsername && (
+                        <p className="text-xs text-neutral-500 mt-1">Checking availability...</p>
+                      )}
                     </div>
 
                     {/* Full Name */}
@@ -1233,44 +1328,54 @@ export default function UserSettings() {
                         </button>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Generate Credentials Button */}
-                  <div className="flex justify-center py-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleGenerateCredentials}
-                      disabled={isLoading}
-                      className="gap-1 sm:gap-2 text-xs sm:text-base px-3 py-2 sm:px-6 sm:py-3 shadow border-2 border-blue-200 bg-blue-50 text-blue-700 font-bold rounded-lg sm:rounded-xl hover:bg-blue-100 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 transition-all"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-                      Generate Credentials
-                    </Button>
-                  </div>
-
-                  {/* Role Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-2">
-                      Role
-                    </label>
-                    <div className="flex gap-1.5 sm:gap-3 justify-center">
-                      {[
-                        { value: 'member', label: '👤 Member', color: 'bg-primary-50 text-primary-700 border-primary-200' },
-                        { value: 'moderator', label: '🛡️ Moderator', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-                        { value: 'admin', label: '⭐ Admin', color: 'bg-red-50 text-red-700 border-red-200' }
-                      ].map(option => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => handleNewMemberChange('role', option.value)}
-                          disabled={isLoading}
-                          className={`px-2 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl border-2 text-xs sm:text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-sm ${option.color} ${newMember.role === option.value ? 'ring-2 ring-offset-2 ring-primary-400 border-primary-500 scale-105' : 'hover:scale-105 hover:border-primary-400'} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          aria-pressed={newMember.role === option.value}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
+                    {/* Role Selection Dropdown */}
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <label htmlFor="newRole" className="block text-sm font-medium text-neutral-700">
+                          Role
+                        </label>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onMouseEnter={() => setShowRoleTooltip(true)}
+                            onMouseLeave={() => setShowRoleTooltip(false)}
+                            className="text-neutral-400 hover:text-neutral-600 transition-colors"
+                            aria-label="Role information"
+                          >
+                            <HelpCircle className="w-4 h-4" />
+                          </button>
+                          {showRoleTooltip && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="absolute left-6 top-0 z-50 w-64 p-3 bg-neutral-800 text-white text-xs rounded-lg shadow-lg"
+                            >
+                              <div className="space-y-2">
+                                <div>
+                                  <div className="font-semibold text-emerald-400">⭐ Admin</div>
+                                  <div className="text-neutral-300 mt-0.5">Full content management, can add/edit/delete documents and system instructions</div>
+                                </div>
+                                <div className="border-t border-neutral-600 pt-2">
+                                  <div className="font-semibold text-blue-400">👤 Assistant</div>
+                                  <div className="text-neutral-300 mt-0.5">View-only access to knowledge base, can answer queries but cannot modify content</div>
+                                </div>
+                              </div>
+                              <div className="absolute -left-1 top-2 w-2 h-2 bg-neutral-800 transform rotate-45"></div>
+                            </motion.div>
+                          )}
+                        </div>
+                      </div>
+                      <select
+                        id="newRole"
+                        value={newMember.role}
+                        onChange={(e) => handleNewMemberChange('role', e.target.value)}
+                        disabled={isLoading}
+                        className="w-full px-3 py-2.5 border-2 border-neutral-300 rounded-lg bg-white text-neutral-900 focus:outline-none focus:border-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <option value="admin">⭐ Admin (Full access)</option>
+                        <option value="assistant">👤 Assistant (View-only)</option>
+                      </select>
                     </div>
                   </div>
 
@@ -1281,8 +1386,10 @@ export default function UserSettings() {
                       variant="outline"
                       onClick={() => {
                         setShowAddMemberForm(false);
-                        setNewMember({ username: '', fullName: '', email: '', password: '', role: 'member' });
+                        setNewMember({ username: '', fullName: '', email: '', password: '', role: 'admin' });
                         setMemberErrors({});
+                        setUsernameAvailability(null);
+                        setIsCheckingUsername(false);
                       }}
                       disabled={isLoading}
                       className="flex-1 font-bold text-red-700 bg-red-100 border-2 border-red-300 hover:bg-red-200 hover:border-red-500 shadow-sm hover:shadow-md transition-all text-xs sm:text-sm px-2 py-1.5 sm:px-4 sm:py-2"
@@ -1394,29 +1501,53 @@ export default function UserSettings() {
                     </div>
                   </div>
 
-                  {/* Role Selection */}
+                  {/* Role Selection Dropdown */}
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-2">
-                      Role
-                    </label>
-                    <div className="flex gap-1.5 sm:gap-3 justify-center">
-                      {[
-                        { value: 'member', label: '👤 Member', color: 'bg-primary-50 text-primary-700 border-primary-200' },
-                        { value: 'moderator', label: '🛡️ Moderator', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-                        { value: 'admin', label: '⭐ Admin', color: 'bg-red-50 text-red-700 border-red-200' }
-                      ].map(option => (
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <label htmlFor="editRole" className="block text-sm font-medium text-neutral-700">
+                        Role
+                      </label>
+                      <div className="relative">
                         <button
-                          key={option.value}
                           type="button"
-                          onClick={() => handleNewMemberChange('role', option.value)}
-                          disabled={isLoading}
-                          className={`px-2 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl border-2 text-xs sm:text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-sm ${option.color} ${newMember.role === option.value ? 'ring-2 ring-offset-2 ring-primary-400 border-primary-500 scale-105' : 'hover:scale-105 hover:border-primary-400'} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          aria-pressed={newMember.role === option.value}
+                          onMouseEnter={() => setShowRoleTooltip(true)}
+                          onMouseLeave={() => setShowRoleTooltip(false)}
+                          className="text-neutral-400 hover:text-neutral-600 transition-colors"
+                          aria-label="Role information"
                         >
-                          {option.label}
+                          <HelpCircle className="w-4 h-4" />
                         </button>
-                      ))}
+                        {showRoleTooltip && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="absolute left-6 top-0 z-50 w-64 p-3 bg-neutral-800 text-white text-xs rounded-lg shadow-lg"
+                          >
+                            <div className="space-y-2">
+                              <div>
+                                <div className="font-semibold text-emerald-400">⭐ Admin</div>
+                                <div className="text-neutral-300 mt-0.5">Full content management, can add/edit/delete documents and system instructions</div>
+                              </div>
+                              <div className="border-t border-neutral-600 pt-2">
+                                <div className="font-semibold text-blue-400">👤 Assistant</div>
+                                <div className="text-neutral-300 mt-0.5">View-only access to knowledge base, can answer queries but cannot modify content</div>
+                              </div>
+                            </div>
+                            <div className="absolute -left-1 top-2 w-2 h-2 bg-neutral-800 transform rotate-45"></div>
+                          </motion.div>
+                        )}
+                      </div>
                     </div>
+                    <select
+                      id="editRole"
+                      value={newMember.role}
+                      onChange={(e) => handleNewMemberChange('role', e.target.value)}
+                      disabled={isLoading}
+                      className="w-full px-3 py-2.5 border-2 border-neutral-300 rounded-lg bg-white text-neutral-900 focus:outline-none focus:border-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <option value="admin">⭐ Admin (Full access)</option>
+                      <option value="assistant">👤 Assistant (View-only)</option>
+                    </select>
                   </div>
 
                   {/* Action Buttons */}

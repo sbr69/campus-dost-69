@@ -42,7 +42,7 @@ def create_jwt_token(
     
     Args:
         username: User's username (display name)
-        role: User's role (superuser, admin, viewer, analyser)
+        role: User's role (superuser, admin, assistant)
         org_id: Organization ID for data scoping
         email: User's email address (optional)
         uid: User's unique ID (optional, defaults to username)

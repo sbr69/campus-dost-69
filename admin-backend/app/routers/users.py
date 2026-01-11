@@ -29,7 +29,7 @@ class CreateUserRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     full_name: Optional[str] = Field(None, max_length=200)
-    role: str = Field("admin", pattern="^(admin|viewer|analyser)$")
+    role: str = Field("assistant", pattern="^(admin|assistant)$")
 
 
 class UpdateUserRequest(BaseModel):
@@ -37,7 +37,7 @@ class UpdateUserRequest(BaseModel):
     username: Optional[str] = Field(None, min_length=3, max_length=50)
     email: Optional[EmailStr] = None
     full_name: Optional[str] = Field(None, max_length=200)
-    role: Optional[str] = Field(None, pattern="^(admin|viewer|analyser)$")
+    role: Optional[str] = Field(None, pattern="^(admin|assistant)$")
     status: Optional[str] = Field(None, pattern="^(active|disabled)$")
 
 
@@ -102,7 +102,7 @@ async def list_users(
                 "username": data.get("username", doc.id),
                 "email": data.get("email", ""),
                 "full_name": data.get("full_name"),
-                "role": data.get("role", "viewer"),
+                "role": data.get("role", "assistant"),
                 "org_id": data.get("org_id", user.org_id),
                 "status": data.get("status", "active"),
                 "created_at": data.get("created_at").isoformat() if data.get("created_at") else None,
@@ -165,7 +165,7 @@ async def get_user(
                 "username": data.get("username", doc.id),
                 "email": data.get("email", ""),
                 "full_name": data.get("full_name"),
-                "role": data.get("role", "viewer"),
+                "role": data.get("role", "assistant"),
                 "org_id": data.get("org_id"),
                 "status": data.get("status", "active"),
                 "created_at": data.get("created_at").isoformat() if data.get("created_at") else None,
@@ -225,8 +225,8 @@ async def create_user(
         raise HTTPException(status_code=400, detail="Invalid email address")
     if not password or len(password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    if role not in ("admin", "viewer", "analyser"):
-        raise HTTPException(status_code=400, detail="Invalid role. Must be admin, viewer, or analyser")
+    if role not in ("admin", "assistant"):
+        raise HTTPException(status_code=400, detail="Invalid role. Must be admin or assistant")
     
     db = get_db()
     
@@ -371,8 +371,8 @@ async def update_user(
         
         if "role" in req and req["role"] is not None:
             role = req["role"]
-            if role not in ("admin", "viewer", "analyser"):
-                raise HTTPException(status_code=400, detail="Invalid role")
+            if role not in ("admin", "assistant"):
+                raise HTTPException(status_code=400, detail="Invalid role. Must be admin or assistant")
             update_data["role"] = role
             changes.append("role")
         

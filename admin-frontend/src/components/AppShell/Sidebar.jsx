@@ -23,55 +23,64 @@ const navItems = [
     id: 'dashboard',
     label: 'Dashboard',
     path: '/dashboard',
-    icon: LayoutDashboard
+    icon: LayoutDashboard,
+    roles: ['superuser', 'admin', 'assistant'] // All roles
   },
   {
     id: 'knowledge-base',
     label: 'Knowledge Base',
     path: '/knowledge-base',
-    icon: BookOpen
+    icon: BookOpen,
+    roles: ['superuser', 'admin', 'assistant'] // All roles (assistant: view only)
   },
   {
     id: 'archive',
     label: 'Archive',
     path: '/archive',
-    icon: Archive
+    icon: Archive,
+    roles: ['superuser', 'admin'] // Not for assistant
   },
   {
     id: 'add-document',
     label: 'Add Document',
     path: '/add-document',
-    icon: FilePlus
+    icon: FilePlus,
+    roles: ['superuser', 'admin'] // Not for assistant
   },
   {
     id: 'add-text',
     label: 'Add Text',
     path: '/add-text',
-    icon: Type
+    icon: Type,
+    roles: ['superuser', 'admin'] // Not for assistant
   },
   {
     id: 'query-analytics',
     label: 'Query Analytics',
     path: '/query-analytics',
-    icon: BarChart3
+    icon: BarChart3,
+    roles: ['superuser', 'admin', 'assistant'] // All roles can view analytics
   },
   {
     id: 'unsolved-queries',
     label: 'Unsolved Queries',
     path: '/unsolved-queries',
-    icon: HelpCircle
+    icon: HelpCircle,
+    roles: ['superuser', 'admin', 'assistant'] // Assistant can answer queries
   },
   {
     id: 'bot-settings',
     label: 'Bot Settings',
     path: '/bot-settings',
-    icon: Settings
+    icon: Settings,
+    roles: ['superuser', 'admin'] // Not for assistant
   },
   {
     id: 'system-instructions',
     label: 'System Instructions',
     path: '/system-instructions',
-    icon: FileText
+    icon: FileText,
+    roles: ['superuser', 'admin'] // Not for assistant
   }
 ];
 
@@ -125,9 +134,6 @@ const UserSection = memo(function UserSection({ user, onLogout, onSettingsClick 
   
   const displayRole = formatRole(user?.role);
   
-  // Show org_id as subtitle for multi-tenant context
-  const displayOrg = user?.org_id || '';
-  
   // Generate consistent avatar based on uid or username
   const avatarSeed = user?.uid || user?.username || user?.org_id || 'default';
   
@@ -148,19 +154,9 @@ const UserSection = memo(function UserSection({ user, onLogout, onSettingsClick 
             <p className="text-sm font-medium text-neutral-900 truncate" title={displayName}>
               {displayName}
             </p>
-            <div className="flex items-center gap-1.5">
-              <p className={`text-xs truncate ${isSuperuser ? 'text-primary-600 font-medium' : 'text-neutral-500'}`} title={displayRole}>
-                {displayRole}
-              </p>
-              {displayOrg && (
-                <>
-                  <span className="text-neutral-300">•</span>
-                  <p className="text-xs text-neutral-400 truncate" title={displayOrg}>
-                    {displayOrg}
-                  </p>
-                </>
-              )}
-            </div>
+            <p className={`text-xs truncate ${isSuperuser ? 'text-primary-600 font-medium' : 'text-neutral-500'}`} title={displayRole}>
+              {displayRole}
+            </p>
           </div>
           <button
             onClick={onSettingsClick}
@@ -208,6 +204,12 @@ export function Sidebar({ isMobileOpen, onCloseMobile }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  // Filter nav items based on user role
+  const userRole = user?.role || 'assistant';
+  const filteredNavItems = navItems.filter(item => 
+    item.roles.includes(userRole)
+  );
+
   const handleLogout = useCallback(() => {
     logout();
     navigate('/login');
@@ -230,7 +232,7 @@ export function Sidebar({ isMobileOpen, onCloseMobile }) {
 
         <nav className="flex-1 overflow-y-auto py-4 scrollbar-thin" aria-label="Primary">
           <ul className="space-y-1 px-3" role="list">
-            {navItems.map((item, index) => (
+            {filteredNavItems.map((item, index) => (
               <SidebarItem key={item.id} item={item} index={index} />
             ))}
           </ul>
@@ -266,7 +268,7 @@ export function Sidebar({ isMobileOpen, onCloseMobile }) {
 
               <nav className="flex-1 overflow-y-auto py-4 scrollbar-thin" aria-label="Primary">
                 <ul className="space-y-1 px-3" role="list">
-                  {navItems.map((item, index) => (
+                  {filteredNavItems.map((item, index) => (
                     <SidebarItem key={item.id} item={item} onClick={onCloseMobile} index={index} />
                   ))}
                 </ul>

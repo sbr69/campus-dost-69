@@ -11,6 +11,7 @@ import { EmptyState } from "../components/UI/EmptyState";
 import { FilePreview, FileTypeIcon, TypeBadge } from "../components/UI/FileComponents";
 import { LoadingSpinner } from "../components/UI/LoadingSpinner";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
 import { useDebounce } from "../hooks/useHooks";
 import {
   FileText,
@@ -133,11 +134,15 @@ function CombinedMetricsCard({ metrics, loading = false }) {
 
 export default function KnowledgeBasePage() {
   const { addToast, updateToast } = useToast();
+  const { user } = useAuth();
   const [documents, setDocuments] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [previewDoc, setPreviewDoc] = useState(null);
   const [serverStatus, setServerStatus] = useState('online');
   const [selectedIds, setSelectedIds] = useState(new Set());
+  
+  // Check if user is assistant (view-only)
+  const isAssistant = user?.role === 'assistant';
 
   // Dashboard metrics from API
   const [dashboardMetrics, setDashboardMetrics] = useState({
@@ -622,10 +627,10 @@ export default function KnowledgeBasePage() {
           <div className="flex gap-1.5 sm:gap-2 justify-center sm:justify-start flex-wrap">
             <button
               onClick={handleBulkArchiveClick}
-              disabled={selectedIds.size === 0}
+              disabled={selectedIds.size === 0 || isAssistant}
               className={cn(
                 "px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors flex items-center gap-1.5 sm:gap-2 min-h-[36px]",
-                selectedIds.size > 0
+                selectedIds.size > 0 && !isAssistant
                   ? "bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100"
                   : "bg-neutral-100 text-neutral-400 border border-neutral-200 cursor-not-allowed"
               )}
@@ -738,7 +743,8 @@ export default function KnowledgeBasePage() {
                       <div className="flex items-center justify-center gap-1 flex-nowrap">
                         <button
                           onClick={() => handleArchiveClick(doc)}
-                          className="px-2 sm:px-3 py-1.5 text-xs font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 rounded hover:bg-yellow-100 transition-colors"
+                          disabled={isAssistant}
+                          className="px-2 sm:px-3 py-1.5 text-xs font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 rounded hover:bg-yellow-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-yellow-50"
                         >
                           <span className="hidden sm:inline">Archive</span>
                           <Archive className="sm:hidden w-3.5 h-3.5" />

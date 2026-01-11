@@ -4,7 +4,7 @@ Firebase Authentication Service for Multi-Tenant Organization System.
 This module provides secure authentication using Firebase Auth with:
 - Firebase Custom Tokens for session management
 - Organization-level data isolation (org_id)
-- Role-based access control (superuser, admin, viewer, analyser)
+- Role-based access control (superuser, admin, assistant)
 - Password verification via Google Identity REST API
 
 Security Features:
@@ -99,7 +99,7 @@ class UserContext(BaseModel):
     @property
     def can_read(self) -> bool:
         """Check if user can perform read operations."""
-        return self.role in ["superuser", "admin", "viewer"]
+        return self.role in ["superuser", "admin", "assistant"]
 
 
 class LoginRequest(BaseModel):
@@ -426,12 +426,12 @@ class FirebaseAuthService:
         # Extract org_id and role
         if user_data:
             org_id = user_data.get("org_id", extract_org_id_from_uid(local_uid))
-            role = user_data.get("role", "viewer")
+            role = user_data.get("role", "assistant")
             username = user_data.get("username", local_uid)
         else:
             # Fallback: extract from UID
             org_id = extract_org_id_from_uid(local_uid)
-            role = "viewer"  # Safe default
+            role = "assistant"  # Safe default
             username = local_uid
         
         user_context = UserContext(
@@ -451,7 +451,7 @@ class FirebaseAuthService:
                 'org_id': org_id,
                 'role': role,
                 'can_write': role in ("superuser", "admin"),
-                'can_read': role in ("superuser", "admin", "viewer"),
+                'can_read': role in ("superuser", "admin", "assistant"),
                 'is_superuser': role == "superuser"
             })()
         }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -13,63 +13,320 @@ import {
   MessageSquare,
   BookOpen,
   Users,
-  Mail
+  Mail,
+  Building2,
+  CheckCircle2,
+  XCircle,
+  Sparkles,
+  Shield,
+  Zap
 } from 'lucide-react';
+
+// API Base URL
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// Debounce hook for availability check
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+// Availability status icon component (for inside input field)
+const AvailabilityIcon = ({ status, isChecking }) => {
+  if (isChecking) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+      >
+        <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
+      </motion.div>
+    );
+  }
+
+  if (status === 'available') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+      >
+        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+      </motion.div>
+    );
+  }
+
+  if (status === 'taken') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+      >
+        <XCircle className="w-5 h-5 text-red-500" />
+      </motion.div>
+    );
+  }
+
+  return null;
+};
+
+// Availability status text component (for below input field)
+const AvailabilityText = ({ status, isChecking, value }) => {
+  if (isChecking) {
+    return (
+      <motion.p
+        initial={{ opacity: 0, y: -5 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -5 }}
+        className="text-xs text-neutral-500 ml-1"
+      >
+        Checking availability...
+      </motion.p>
+    );
+  }
+
+  if (status === 'available') {
+    return (
+      <motion.p
+        initial={{ opacity: 0, y: -5 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -5 }}
+        className="text-xs text-emerald-600 font-medium ml-1"
+      >
+        ✓ {value} is available
+      </motion.p>
+    );
+  }
+
+  if (status === 'taken') {
+    return (
+      <motion.p
+        initial={{ opacity: 0, y: -5 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -5 }}
+        className="text-xs text-red-600 font-medium ml-1"
+      >
+        ✗ {value} is already taken
+      </motion.p>
+    );
+  }
+
+  return null;
+};
+
+// Feature card for landing page
+const FeatureCard = ({ icon: Icon, title, description, delay, gradient }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 30, scale: 0.95 }}
+    animate={{ opacity: 1, y: 0, scale: 1 }}
+    transition={{ 
+      delay, 
+      duration: 0.5, 
+      type: 'spring', 
+      stiffness: 200, 
+      damping: 20 
+    }}
+    whileHover={{ 
+      y: -5, 
+      scale: 1.02,
+      transition: { duration: 0.2 }
+    }}
+    className="group relative p-6 rounded-2xl bg-white/70 backdrop-blur-sm border border-neutral-200/50 shadow-lg shadow-neutral-200/30 hover:shadow-xl hover:shadow-indigo-200/30 transition-all duration-300"
+  >
+    <div className={`w-12 h-12 rounded-xl ${gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
+      <Icon className="w-6 h-6 text-white" />
+    </div>
+    <h3 className="font-semibold text-neutral-800 text-lg mb-2">{title}</h3>
+    <p className="text-sm text-neutral-500 leading-relaxed">{description}</p>
+  </motion.div>
+);
+
+// Input field component with animations
+const AnimatedInput = ({ 
+  icon: Icon, 
+  label, 
+  type = 'text', 
+  value, 
+  onChange, 
+  placeholder, 
+  error,
+  rightElement,
+  showPasswordToggle,
+  showPassword,
+  onTogglePassword,
+  availabilityStatus,
+  isCheckingAvailability
+}) => {
+  const [isFocused, setIsFocused] = useState(false);
+
+  return (
+    <motion.div 
+      className="space-y-2"
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider ml-1">
+        {label}
+      </label>
+      <div className="relative group">
+        <motion.div
+          animate={{ 
+            color: error ? '#ef4444' : isFocused ? '#6366f1' : '#9ca3af'
+          }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors duration-200"
+        >
+          <Icon className="w-5 h-5" />
+        </motion.div>
+        <input
+          type={showPasswordToggle ? (showPassword ? 'text' : 'password') : type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          className={`w-full pl-10 sm:pl-12 ${rightElement ? 'pr-12 sm:pr-14' : showPasswordToggle ? 'pr-10 sm:pr-12' : 'pr-4'} py-3 sm:py-4 bg-white border-2 rounded-xl outline-none text-neutral-800 placeholder-neutral-400 transition-all duration-200 text-xs sm:text-sm placeholder:truncate ${
+            error
+              ? 'border-red-300 bg-red-50/50 focus:border-red-400 focus:ring-4 focus:ring-red-100'
+              : isFocused
+                ? 'border-indigo-400 bg-white focus:ring-4 focus:ring-indigo-100'
+                : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50/50'
+          }`}
+          placeholder={placeholder}
+        />
+        {rightElement && (
+          <div className="absolute right-4 top-1/2 -translate-y-1/2">
+            {rightElement}
+          </div>
+        )}
+        {showPasswordToggle && (
+          <button
+            type="button"
+            onClick={onTogglePassword}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors p-1"
+          >
+            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        )}
+      </div>
+      <AnimatePresence>
+        {error && (
+          <motion.p
+            initial={{ opacity: 0, y: -5, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -5, height: 0 }}
+            className="text-xs text-red-500 ml-1"
+          >
+            {error}
+          </motion.p>
+        )}
+        {!error && (availabilityStatus || isCheckingAvailability) && (
+          <AvailabilityText status={availabilityStatus} isChecking={isCheckingAvailability} value={value} />
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, register } = useAuth();
 
-  const [mode, setMode] = useState('login'); // 'login' or 'register'
+  // View states: 'landing', 'login', 'register'
+  const [view, setView] = useState('landing');
+  const [registrationStep, setRegistrationStep] = useState(1); // 1: orgID + password, 2: orgName + email
   const [formData, setFormData] = useState({ 
     email: '', 
     password: '',
     organisationId: '',
     organisationName: '',
-    agreeToTerms: false
+    username: ''
   });
-  const [error, setError] = useState('');
-  const [errorField, setErrorField] = useState(null);
+  const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Availability check states
+  const [orgIdAvailability, setOrgIdAvailability] = useState(null); // 'available', 'taken', null
+  const [isCheckingOrgId, setIsCheckingOrgId] = useState(false);
+  
+  // Debounced value for availability check
+  const debouncedOrgId = useDebounce(formData.organisationId, 500);
+
+  // Check organisation ID availability
+  useEffect(() => {
+    const checkAvailability = async () => {
+      if (!debouncedOrgId || debouncedOrgId.length < 3) {
+        setOrgIdAvailability(null);
+        return;
+      }
+
+      setIsCheckingOrgId(true);
+      try {
+        // TODO: Replace with actual API endpoint when available
+        const response = await fetch(`${API_URL}/api/v1/auth/check-org-id?org_id=${encodeURIComponent(debouncedOrgId)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setOrgIdAvailability(data.available ? 'available' : 'taken');
+        } else {
+          // If endpoint doesn't exist yet, simulate available
+          setOrgIdAvailability('available');
+        }
+      } catch (error) {
+        // Fallback: assume available if can't check
+        console.log('Availability check not available, assuming available');
+        setOrgIdAvailability('available');
+      } finally {
+        setIsCheckingOrgId(false);
+      }
+    };
+
+    if (view === 'register') {
+      checkAvailability();
+    }
+  }, [debouncedOrgId, view]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    if (error) {
-      setError('');
-      setErrorField(null);
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: null }));
+    }
+    // Reset availability when orgId changes
+    if (field === 'organisationId') {
+      setOrgIdAvailability(null);
     }
   };
 
-  const switchMode = (newMode) => {
-    setMode(newMode);
-    setFormData({ email: '', username: '', password: '', organisationId: '', organisationName: '', agreeToTerms: false });
-    setError('');
-    setErrorField(null);
+  const switchView = (newView) => {
+    setView(newView);
+    setRegistrationStep(1);
+    setFormData({ email: '', password: '', organisationId: '', organisationName: '', username: '' });
+    setErrors({});
     setShowPassword(false);
-  };
-
-  const getErrorInfo = (errorType) => {
-    if (mode === 'login') {
-      switch (errorType) {
-        case 'username_not_found': return { message: 'Account not found', field: 'username' };
-        case 'incorrect_password': return { message: 'Invalid credentials', field: 'password' };
-        default: return { message: errorType || 'Authentication failed', field: null };
-      }
-    } else {
-      switch (errorType) {
-        case 'username_exists': return { message: 'Username already taken', field: 'username' };
-        case 'email_exists': return { message: 'Email already registered', field: 'email' };
-        case 'weak_password': return { message: 'Password too weak', field: 'password' };
-        default: return { message: errorType || 'Registration failed', field: null };
-      }
-    }
+    setOrgIdAvailability(null);
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError('');
-    setErrorField(null);
+    setErrors({});
+
+    // Client-side validation
+    if (!formData.username.trim()) {
+      setErrors({ username: 'Please enter your username' });
+      return;
+    }
+    if (!formData.password) {
+      setErrors({ password: 'Please enter your password' });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -77,413 +334,589 @@ export default function LoginPage() {
       if (result && result.success) {
         navigate('/dashboard');
       } else if (result && result.error) {
-        const errorInfo = getErrorInfo(result.error);
-        setError(errorInfo.message);
-        setErrorField(errorInfo.field);
+        if (result.error.includes('username') || result.error.includes('not found')) {
+          setErrors({ username: 'Account not found' });
+        } else if (result.error.includes('password') || result.error.includes('credentials')) {
+          setErrors({ password: 'Invalid credentials' });
+        } else {
+          setErrors({ general: result.error });
+        }
         setFormData(prev => ({ ...prev, password: '' }));
       }
     } catch (err) {
-      const errorInfo = getErrorInfo(err.message);
-      setError(errorInfo.message);
-      setErrorField(errorInfo.field);
+      setErrors({ general: 'Network error. Please try again.' });
       setFormData(prev => ({ ...prev, password: '' }));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRegister = async (e) => {
+  const handleRegisterStep1 = (e) => {
     e.preventDefault();
-    setError('');
-    setErrorField(null);
+    setErrors({});
 
-    if (!formData.agreeToTerms) {
-      setError('Please accept the Terms of Service and Privacy Policy');
+    // Step 1 Validation: orgID and password
+    if (formData.organisationId.length < 3) {
+      setErrors({ organisationId: 'Organisation ID must be at least 3 characters' });
+      return;
+    }
+    if (orgIdAvailability === 'taken') {
+      setErrors({ organisationId: 'This Organisation ID is already taken' });
+      return;
+    }
+    if (formData.password.length < 8) {
+      setErrors({ password: 'Password must be at least 8 characters' });
+      return;
+    }
+
+    // Move to step 2
+    setRegistrationStep(2);
+  };
+
+  const handleRegisterStep2 = async (e) => {
+    e.preventDefault();
+    setErrors({});
+
+    // Step 2 Validation: orgName and email
+    if (!formData.organisationName.trim()) {
+      setErrors({ organisationName: 'Please enter your organisation name' });
+      return;
+    }
+    if (!formData.email.trim()) {
+      setErrors({ email: 'Please enter your email address' });
+      return;
+    }
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setErrors({ email: 'Please enter a valid email address' });
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const result = await register(formData.email, formData.username, formData.password);
+      const result = await register(
+        formData.email, 
+        formData.organisationId,
+        formData.password,
+        formData.organisationName
+      );
       if (result && result.success) {
         navigate('/dashboard');
       } else if (result && result.error) {
-        const errorInfo = getErrorInfo(result.error);
-        setError(errorInfo.message);
-        setErrorField(errorInfo.field);
+        if (result.error.includes('email')) {
+          setErrors({ email: 'Email already registered' });
+        } else if (result.error.includes('org') || result.error.includes('ID')) {
+          setErrors({ organisationId: result.error });
+          // Go back to step 1 if org ID error
+          setRegistrationStep(1);
+        } else {
+          setErrors({ general: result.error });
+        }
       }
     } catch (err) {
-      const errorInfo = getErrorInfo(err.message);
-      setError(errorInfo.message);
-      setErrorField(errorInfo.field);
+      setErrors({ general: 'Registration failed. Please try again.' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSubmit = mode === 'login' ? handleLogin : handleRegister;
+  // Animation variants
+  const pageVariants = {
+    initial: { opacity: 0, y: 20, scale: 0.98 },
+    animate: { 
+      opacity: 1, 
+      y: 0, 
+      scale: 1,
+      transition: { 
+        duration: 0.5, 
+        type: 'spring', 
+        stiffness: 200, 
+        damping: 25 
+      }
+    },
+    exit: { 
+      opacity: 0, 
+      y: -20, 
+      scale: 0.98,
+      transition: { duration: 0.3 }
+    }
+  };
+
+  const staggerContainer = {
+    animate: {
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2
+      }
+    }
+  };
 
   return (
-    <div className="min-h-screen w-full flex bg-neutral-950 text-neutral-100">
-      
-      {/* --- LEFT PANEL: Brand & Info --- */}
-      <div className="hidden lg:flex w-1/2 h-screen overflow-hidden relative bg-neutral-900 sticky top-0">
-        {/* Subtle gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/40 via-transparent to-violet-950/30" />
-        
-        {/* Grid pattern */}
-        <div 
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-            backgroundSize: '64px 64px'
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-gradient-to-br from-slate-50 via-white to-indigo-50/30">
+      {/* Animated Background Elements */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <motion.div
+          animate={{ 
+            x: [0, 30, 0],
+            y: [0, -20, 0],
           }}
+          transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+          className="absolute top-[-10%] right-[-5%] w-[40%] h-[40%] bg-gradient-to-br from-indigo-200/40 to-purple-200/40 rounded-full filter blur-[100px]"
         />
-
-        <div className="relative z-10 w-full h-full flex flex-col p-12">
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-3">
-            <img src={logoImg} alt="Campus Dost Logo" className="w-10 h-10 object-contain" />
-            <span className="font-semibold text-lg text-white">Campus Dost</span>
-          </div>
-
-          {/* Main Content - Centered */}
-          <div className="flex-1 flex flex-col justify-center items-center">
-            <div className="max-w-lg w-full">
-              <h2 className="text-5xl font-bold text-white leading-tight mb-6 text-center">
-                Your Intelligent
-                <br />
-                <span className="text-indigo-400">Campus Assistant</span>
-              </h2>
-              <p className="text-neutral-400 text-lg leading-relaxed mb-16 text-center">
-                Empowering students with AI-powered guidance for academics, campus life, and beyond.
-              </p>
-
-              {/* Feature List */}
-              <div className="space-y-8">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex-shrink-0">
-                    <MessageSquare className="w-6 h-6 text-indigo-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-1.5 text-lg">Instant Answers</h3>
-                    <p className="text-sm text-neutral-400 leading-relaxed">Get quick responses to campus-related queries 24/7</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-violet-500/10 border border-violet-500/20 flex-shrink-0">
-                    <BookOpen className="w-6 h-6 text-violet-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-1.5 text-lg">Knowledge Base</h3>
-                    <p className="text-sm text-neutral-400 leading-relaxed">Access comprehensive campus information at your fingertips</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex-shrink-0">
-                    <Users className="w-6 h-6 text-emerald-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white mb-1.5 text-lg">Student Support</h3>
-                    <p className="text-sm text-neutral-400 leading-relaxed">Personalized assistance for every student's needs</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="text-xs text-neutral-600 text-center">
-            © 2026 Campus Dost. All rights reserved.
-          </div>
-        </div>
+        <motion.div
+          animate={{ 
+            x: [0, -20, 0],
+            y: [0, 30, 0],
+          }}
+          transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+          className="absolute bottom-[-10%] left-[-5%] w-[35%] h-[35%] bg-gradient-to-tr from-emerald-200/30 to-cyan-200/30 rounded-full filter blur-[100px]"
+        />
+        <motion.div
+          animate={{ 
+            x: [0, 15, 0],
+            y: [0, 15, 0],
+          }}
+          transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
+          className="absolute top-[30%] left-[10%] w-[25%] h-[25%] bg-gradient-to-br from-pink-200/20 to-orange-200/20 rounded-full filter blur-[80px]"
+        />
       </div>
 
-      {/* --- RIGHT PANEL: Login Form --- */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 lg:p-16 relative bg-neutral-950">
-        {/* Mobile Background */}
-        <div className="lg:hidden absolute inset-0 bg-gradient-to-b from-indigo-950/20 to-neutral-950" />
-
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="w-full max-w-md space-y-8 relative z-10"
-        >
-          {/* Mobile Logo */}
-          <div className="lg:hidden flex justify-center mb-8">
-            <div className="flex items-center gap-3">
-              <img src={logoImg} alt="Campus Dost Logo" className="w-12 h-12 object-contain" />
-              <span className="font-semibold text-xl text-white">Campus Dost</span>
-            </div>
-          </div>
-
-          <div className="space-y-2 text-center lg:text-left">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={mode}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                transition={{ duration: 0.3 }}
-              >
-                <h1 className="text-3xl font-bold text-white">
-                  {mode === 'login' ? 'Welcome back' : 'Create your account'}
-                </h1>
-                <p className="text-neutral-500 mt-3">
-                  {mode === 'login' 
-                    ? 'Sign in to access the admin dashboard' 
-                    : 'Join the smartest campus community today'}
-                </p>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
-          <AnimatePresence mode="wait">
-            <motion.form
-              key={mode}
-              onSubmit={handleSubmit}
-              initial={{ opacity: 0, x: mode === 'login' ? -20 : 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: mode === 'login' ? 20 : -20 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="space-y-6 mt-8"
+      <AnimatePresence mode="wait">
+        {view === 'landing' && (
+          /* ============ LANDING PAGE ============ */
+          <motion.div
+            key="landing"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="h-screen w-full flex flex-col p-4 sm:p-6 md:p-8 lg:p-12 relative z-10 overflow-y-auto"
+          >
+            {/* Header with Logo and Brand */}
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.5 }}
+              className="flex items-center gap-3 sm:gap-4 mb-8 sm:mb-12 lg:mb-16"
             >
-            {/* Email - Only for Register */}
-            {mode === 'register' && (
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider ml-1">Email Address</label>
-                <div className="relative group">
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                    className={`block w-full rounded-xl border-2 bg-neutral-900/50 px-4 py-3.5 pl-11 text-sm text-white transition-colors focus:outline-none focus:ring-0 ${
-                      errorField === 'email' 
-                        ? 'border-red-500/50 focus:border-red-500' 
-                        : 'border-neutral-800 hover:border-neutral-700 focus:border-indigo-500'
-                    }`}
-                    placeholder="student@university.edu"
-                    required
-                  />
-                  <Mail className={`absolute left-4 top-3.5 h-5 w-5 transition-colors ${
-                    errorField === 'email' ? 'text-red-400' : 'text-neutral-500 group-focus-within:text-indigo-400'
-                  }`} />
-                </div>
-              </div>
-            )}
-
-            {/* Organisation ID - Only for Register */}
-            {mode === 'register' && (
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider ml-1">Organisation ID</label>
-                <div className="relative group">
-                  <input
-                    type="text"
-                    value={formData.organisationId}
-                    onChange={(e) => handleInputChange('organisationId', e.target.value)}
-                    className={`block w-full rounded-xl border-2 bg-neutral-900/50 px-4 py-3.5 pl-11 text-sm text-white transition-colors focus:outline-none focus:ring-0 ${
-                      errorField === 'organisationId' 
-                        ? 'border-red-500/50 focus:border-red-500' 
-                        : 'border-neutral-800 hover:border-neutral-700 focus:border-indigo-500'
-                    }`}
-                    placeholder="ORG-12345"
-                    required
-                  />
-                  <Users className={`absolute left-4 top-3.5 h-5 w-5 transition-colors ${
-                    errorField === 'organisationId' ? 'text-red-400' : 'text-neutral-500 group-focus-within:text-indigo-400'
-                  }`} />
-                </div>
-              </div>
-            )}
-
-            {/* Organisation Name - Only for Register */}
-            {mode === 'register' && (
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider ml-1">Organisation Name</label>
-                <div className="relative group">
-                  <input
-                    type="text"
-                    value={formData.organisationName}
-                    onChange={(e) => handleInputChange('organisationName', e.target.value)}
-                    className={`block w-full rounded-xl border-2 bg-neutral-900/50 px-4 py-3.5 pl-11 text-sm text-white transition-colors focus:outline-none focus:ring-0 ${
-                      errorField === 'organisationName' 
-                        ? 'border-red-500/50 focus:border-red-500' 
-                        : 'border-neutral-800 hover:border-neutral-700 focus:border-indigo-500'
-                    }`}
-                    placeholder="University of Excellence"
-                    required
-                  />
-                  <BookOpen className={`absolute left-4 top-3.5 h-5 w-5 transition-colors ${
-                    errorField === 'organisationName' ? 'text-red-400' : 'text-neutral-500 group-focus-within:text-indigo-400'
-                  }`} />
-                </div>
-              </div>
-            )}
-
-            {/* Username - Only for Login */}
-            {mode === 'login' && (
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider ml-1">Username</label>
-                <div className="relative group">
-                  <input
-                    type="text"
-                    value={formData.username}
-                    onChange={(e) => handleInputChange('username', e.target.value)}
-                    className={`block w-full rounded-xl border-2 bg-neutral-900/50 px-4 py-3.5 pl-11 text-sm text-white transition-colors focus:outline-none focus:ring-0 ${
-                      errorField === 'username' 
-                        ? 'border-red-500/50 focus:border-red-500' 
-                        : 'border-neutral-800 hover:border-neutral-700 focus:border-indigo-500'
-                    }`}
-                    placeholder="admin@organization.com"
-                    required
-                  />
-                  <User className={`absolute left-4 top-3.5 h-5 w-5 transition-colors ${
-                    errorField === 'username' ? 'text-red-400' : 'text-neutral-500 group-focus-within:text-indigo-400'
-                  }`} />
-                </div>
-              </div>
-            )}
-
-            {/* Password */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider ml-1">Password</label>
-                {mode === 'login' && (
-                  <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">Forgot password?</a>
-                )}
-              </div>
-              <div className="relative group">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  className={`block w-full rounded-xl border-2 bg-neutral-900/50 px-4 py-3.5 pl-11 pr-12 text-sm text-white transition-colors focus:outline-none focus:ring-0 ${
-                    errorField === 'password' 
-                      ? 'border-red-500/50 focus:border-red-500' 
-                      : 'border-neutral-800 hover:border-neutral-700 focus:border-indigo-500'
-                  }`}
-                  placeholder="••••••••••••"
-                  required
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur-lg opacity-30 animate-pulse" />
+                <img 
+                  src={logoImg} 
+                  alt="Campus Dost Logo" 
+                  className="relative w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 object-contain"
                 />
-                <Lock className={`absolute left-4 top-3.5 h-5 w-5 transition-colors ${
-                  errorField === 'password' ? 'text-red-400' : 'text-neutral-500 group-focus-within:text-indigo-400'
-                }`} />
+              </div>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600">
+                Campus Dost
+              </h1>
+            </motion.div>
+
+            {/* Main Content - Centered */}
+            <div className="flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full space-y-6 sm:space-y-8 md:space-y-10 lg:space-y-12">
+              {/* Tagline */}
+              <motion.h2 
+                className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-bold text-neutral-800 leading-tight tracking-tight text-center px-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                Your Intelligent{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600">
+                  Campus Assistant
+                </span>
+              </motion.h2>
+
+              {/* Description */}
+              <motion.p 
+                className="text-neutral-500 text-xs sm:text-sm md:text-base lg:text-lg max-w-2xl mx-auto leading-relaxed px-4 text-center"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                Empowering institutions with AI-powered guidance for academics, campus life, and beyond. 
+                Manage your knowledge base with elegance.
+              </motion.p>
+
+              {/* CTA Buttons */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4 w-full max-w-md"
+              >
+                <motion.button
+                  onClick={() => switchView('register')}
+                  className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm sm:text-base font-semibold rounded-xl shadow-lg shadow-indigo-200/50 hover:shadow-xl hover:shadow-indigo-300/50 transition-all duration-300 flex items-center justify-center gap-2 group"
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <span>Join Us</span>
+                </motion.button>
+
+                <motion.button
+                  onClick={() => switchView('login')}
+                  className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-white hover:bg-neutral-50 text-neutral-800 text-sm sm:text-base font-semibold rounded-xl border-2 border-neutral-200 hover:border-neutral-300 shadow-lg shadow-neutral-200/30 hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2 group"
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <span>Log In</span>
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:translate-x-1" />
+                </motion.button>
+              </motion.div>
+            </div>
+
+            {/* Footer */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="text-center text-xs text-neutral-400 mt-8"
+            >
+              © 2026 Campus Dost.
+            </motion.p>
+          </motion.div>
+        )}
+
+        {view === 'login' && (
+          /* ============ LOGIN PAGE ============ */
+          <motion.div
+            key="login"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 md:p-8 relative z-10"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 20 }}
+              className="w-full max-w-md space-y-6 bg-white/80 backdrop-blur-xl p-6 sm:p-8 lg:p-10 rounded-3xl border border-neutral-200/50 shadow-2xl shadow-neutral-200/50"
+            >
+              {/* Back Button */}
+              <motion.button
+                onClick={() => switchView('landing')}
+                className="flex items-center gap-2 text-neutral-500 hover:text-neutral-700 transition-colors group"
+                whileHover={{ x: -3 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span className="text-sm font-medium">Back</span>
+              </motion.button>
+
+              {/* Header */}
+              <motion.div 
+                className="text-center space-y-2"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Welcome back</h1>
+                <p className="text-sm text-neutral-500">Sign in to access your dashboard</p>
+              </motion.div>
+
+              {/* Form */}
+              <motion.form 
+                onSubmit={handleLogin}
+                className="space-y-5"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                <AnimatedInput
+                  icon={User}
+                  label="Username"
+                  value={formData.username}
+                  onChange={(val) => handleInputChange('username', val)}
+                  placeholder="Enter your username"
+                  error={errors.username}
+                />
+
+                <AnimatedInput
+                  icon={Lock}
+                  label="Password"
+                  value={formData.password}
+                  onChange={(val) => handleInputChange('password', val)}
+                  placeholder="Enter your password"
+                  error={errors.password}
+                  showPasswordToggle
+                  showPassword={showPassword}
+                  onTogglePassword={() => setShowPassword(!showPassword)}
+                />
+
+                {/* General Error */}
+                <AnimatePresence>
+                  {errors.general && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: 'auto' }}
+                      exit={{ opacity: 0, y: -10, height: 0 }}
+                      className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 text-center"
+                    >
+                      {errors.general}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Submit Button */}
+                <motion.button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-200/50 hover:shadow-xl hover:shadow-indigo-300/50 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
+                  whileHover={{ scale: isLoading ? 1 : 1.01 }}
+                  whileTap={{ scale: isLoading ? 1 : 0.99 }}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Signing in...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Sign In</span>
+                      <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+                    </>
+                  )}
+                </motion.button>
+              </motion.form>
+
+              {/* Switch to Register */}
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="text-center text-sm text-neutral-500"
+              >
+                Don't have an account?{' '}
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-3.5 text-neutral-500 hover:text-neutral-300 transition-colors"
+                  onClick={() => switchView('register')}
+                  className="text-indigo-600 hover:text-indigo-700 font-semibold transition-colors"
                 >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  Sign up
                 </button>
-              </div>
-            </div>
+              </motion.p>
 
-            {/* Terms & Conditions - Only for Register */}
-            {mode === 'register' && (
-              <div className="flex items-start">
-                <div className="flex items-center h-5 mt-0.5">
-                  <input
-                    id="terms"
-                    name="terms"
-                    type="checkbox"
-                    checked={formData.agreeToTerms}
-                    onChange={(e) => handleInputChange('agreeToTerms', e.target.checked)}
-                    className="w-4 h-4 rounded border-neutral-700 bg-neutral-900/50 text-white focus:ring-2 focus:ring-indigo-500 focus:ring-offset-0"
-                  />
-                </div>
-                <div className="ml-3 text-sm">
-                  <label htmlFor="terms" className="text-neutral-500 text-xs">
-                    I agree to the{' '}
-                    <a href="#" className="font-bold text-neutral-400 hover:text-white hover:underline transition-colors">
-                      Terms of Service
-                    </a>{' '}
-                    and{' '}
-                    <a href="#" className="font-bold text-neutral-400 hover:text-white hover:underline transition-colors">
-                      Privacy Policy
-                    </a>
-                  </label>
-                </div>
-              </div>
-            )}
+            </motion.div>
+          </motion.div>
+        )}
 
-            {/* Error Message */}
-            <div className="h-6">
-              <AnimatePresence>
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="flex items-center gap-2 text-red-400 text-sm bg-red-400/10 p-2 rounded-lg"
-                  >
-                    <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                    {error}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group relative w-full overflow-hidden rounded-xl bg-white p-3.5 text-sm font-bold text-neutral-950 shadow-[0_0_20px_rgba(255,255,255,0.1)] transition-all hover:bg-neutral-200 hover:shadow-[0_0_25px_rgba(255,255,255,0.2)] disabled:opacity-70 disabled:cursor-not-allowed"
+        {view === 'register' && (
+          /* ============ REGISTER PAGE ============ */
+          <motion.div
+            key="register"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 md:p-8 relative z-10 overflow-y-auto"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 20 }}
+              className="w-full max-w-md space-y-6 bg-white/80 backdrop-blur-xl p-6 sm:p-8 lg:p-10 rounded-3xl border border-neutral-200/50 shadow-2xl shadow-neutral-200/50 my-8"
             >
-              <div className="relative flex items-center justify-center gap-2">
-                {isLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <>
-                    <span>{mode === 'login' ? 'Sign In to Console' : 'Create Account'}</span>
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </>
-                )}
+              {/* Back Button */}
+              <motion.button
+                onClick={() => switchView('landing')}
+                className="flex items-center gap-2 text-neutral-500 hover:text-neutral-700 transition-colors group"
+                whileHover={{ x: -3 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span className="text-sm font-medium">Back</span>
+              </motion.button>
+
+              {/* Header */}
+              <motion.div 
+                className="text-center space-y-2"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <h1 className="text-2xl sm:text-3xl font-bold text-neutral-800">Create your account</h1>
+                <p className="text-sm text-neutral-500">
+                  {registrationStep === 1 ? 'Step 1 of 2: Organization Setup' : 'Step 2 of 2: Your Details'}
+                </p>
+              </motion.div>
+
+              {/* Step Indicator */}
+              <div className="flex items-center justify-center gap-2">
+                <div className={`h-2 w-16 rounded-full transition-all duration-300 ${
+                  registrationStep === 1 ? 'bg-indigo-600' : 'bg-emerald-500'
+                }`} />
+                <div className={`h-2 w-16 rounded-full transition-all duration-300 ${
+                  registrationStep === 2 ? 'bg-indigo-600' : 'bg-neutral-200'
+                }`} />
               </div>
-            </button>
-          </motion.form>
-          </AnimatePresence>
 
-          {/* Mode Switch Link */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-neutral-500">
-              {mode === 'login' ? (
-                <>
-                  Don't have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => switchMode('register')}
-                    className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+              {/* Step 1 Form: OrgID + Password */}
+              {registrationStep === 1 && (
+                <motion.form
+                  key="step1"
+                  onSubmit={handleRegisterStep1}
+                  className="space-y-4"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {/* Organisation ID */}
+                  <AnimatedInput
+                    icon={Building2}
+                    label="Organisation ID"
+                    value={formData.organisationId}
+                    onChange={(val) => handleInputChange('organisationId', val.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
+                    placeholder="e.g., stanford-2024"
+                    error={errors.organisationId}
+                    rightElement={
+                      formData.organisationId.length >= 3 && (
+                        <AvailabilityIcon 
+                          status={orgIdAvailability} 
+                          isChecking={isCheckingOrgId}
+                        />
+                      )
+                    }
+                    availabilityStatus={formData.organisationId.length >= 3 ? orgIdAvailability : null}
+                    isCheckingAvailability={isCheckingOrgId}
+                  />
+
+                  {/* Password */}
+                  <AnimatedInput
+                    icon={Lock}
+                    label="Password"
+                    value={formData.password}
+                    onChange={(val) => handleInputChange('password', val)}
+                    placeholder="Min. 8 characters"
+                    error={errors.password}
+                    showPasswordToggle
+                    showPassword={showPassword}
+                    onTogglePassword={() => setShowPassword(!showPassword)}
+                  />
+
+                  {/* Next Button */}
+                  <motion.button
+                    type="submit"
+                    disabled={orgIdAvailability === 'taken'}
+                    className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-200/50 hover:shadow-xl hover:shadow-indigo-300/50 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
+                    whileHover={{ scale: orgIdAvailability === 'taken' ? 1 : 1.01 }}
+                    whileTap={{ scale: orgIdAvailability === 'taken' ? 1 : 0.99 }}
                   >
-                    Sign up
-                  </button>
-                </>
-              ) : (
-                <>
-                  Already have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => switchMode('login')}
-                    className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
-                  >
-                    Sign in
-                  </button>
-                </>
+                    <span>Continue</span>
+                    <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+                  </motion.button>
+                </motion.form>
               )}
-            </p>
-          </div>
 
-          {/* Footer for Login Side */}
-          <div className="mt-8 text-center">
-            <p className="text-xs text-neutral-600">
-              Protected by Campus Dost Security
-            </p>
-          </div>
-        </motion.div>
-      </div>
+              {/* Step 2 Form: OrgName + Email */}
+              {registrationStep === 2 && (
+                <motion.form
+                  key="step2"
+                  onSubmit={handleRegisterStep2}
+                  className="space-y-4"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {/* Organisation Name */}
+                  <AnimatedInput
+                    icon={Users}
+                    label="Organisation Name"
+                    value={formData.organisationName}
+                    onChange={(val) => handleInputChange('organisationName', val)}
+                    placeholder="Your institution name"
+                    error={errors.organisationName}
+                  />
+
+                  {/* Email */}
+                  <AnimatedInput
+                    icon={Mail}
+                    label="Email Address"
+                    type="email"
+                    value={formData.email}
+                    onChange={(val) => handleInputChange('email', val)}
+                    placeholder="admin@institution.edu"
+                    error={errors.email}
+                  />
+
+                  {/* General Error */}
+                  <AnimatePresence>
+                    {errors.general && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10, height: 0 }}
+                        animate={{ opacity: 1, y: 0, height: 'auto' }}
+                        exit={{ opacity: 0, y: -10, height: 0 }}
+                        className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 text-center"
+                      >
+                        {errors.general}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <motion.button
+                      type="button"
+                      onClick={() => setRegistrationStep(1)}
+                      className="w-1/3 py-4 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-xl transition-all duration-300 flex items-center justify-center"
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                    >
+                      Back
+                    </motion.button>
+                    <motion.button
+                      type="submit"
+                      disabled={isLoading}
+                      className="flex-1 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-200/50 hover:shadow-xl hover:shadow-indigo-300/50 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
+                      whileHover={{ scale: isLoading ? 1 : 1.01 }}
+                      whileTap={{ scale: isLoading ? 1 : 0.99 }}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>Creating...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-5 h-5" />
+                          <span>Create Account</span>
+                        </>
+                      )}
+                    </motion.button>
+                  </div>
+                </motion.form>
+              )}
+
+              {/* Switch to Login */}
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="text-center text-sm text-neutral-500"
+              >
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => switchView('login')}
+                  className="text-indigo-600 hover:text-indigo-700 font-semibold transition-colors"
+                >
+                  Sign in
+                </button>
+              </motion.p>
+
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

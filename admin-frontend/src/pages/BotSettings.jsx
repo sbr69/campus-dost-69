@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Settings as SettingsIcon, Save, Check, Download, Upload, RotateCcw, Info } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Check, Download, Upload, RotateCcw, Info, Construction } from 'lucide-react';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { AutoResizeTextarea } from '../components/UI/AutoResizeTextarea';
@@ -179,8 +179,22 @@ export default function Settings() {
   };
 
   return (
-    <div className="h-full flex flex-col overflow-y-auto overflow-x-hidden py-1 px-0">
-      <div className="py-1 sm:py-2 md:py-3 lg:py-3 px-0 w-full">
+    <div className="h-full flex flex-col overflow-y-auto overflow-x-hidden py-1 px-0 relative">
+      {/* Under Development Overlay */}
+      <div className="absolute inset-0 bg-neutral-200/40 backdrop-blur-[1px] z-10 pointer-events-none" />
+      
+      {/* Under Development Badge */}
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.2 }}
+        className="absolute top-2 right-2 sm:top-4 sm:right-4 z-20 flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-amber-100 border border-amber-300 rounded-full shadow-sm"
+      >
+        <Construction className="w-4 h-4 text-amber-600" />
+        <span className="text-xs sm:text-sm font-medium text-amber-700">Under Development</span>
+      </motion.div>
+
+      <div className="py-1 sm:py-2 md:py-3 lg:py-3 px-0 w-full relative z-0 pointer-events-none select-none opacity-60">
         {/* Page Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
